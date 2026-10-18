@@ -1,0 +1,12 @@
+:root { color-scheme: dark; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: radial-gradient(ellipse at 50% 30%, #2a1030 0%, #0b0710 70%);
+  color: #efe6dc; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: grid; place-items: center; min-height: 100vh; text-align: center; padding: 16px; box-sizing: border-box;
+}
+h1 { font-family: Georgia, "Times New Roman", serif; color: #f2b45a; font-weight: normal; letter-spacing: .04em; font-size: clamp(28px, 6vw, 56px); margin: 0 0 12px; }
+p { color: #c9bbad; max-width: 34em; line-height: 1.5; margin: 8px auto; }
+.emoji { font-size: 64px; }
+img.qr { width: min(60vw, 320px); border-radius: 12px; margin-top: 16px; }
+code { color: #f2b45a; }

@@ -1,0 +1,10 @@
+{
+  "id": "koylu",
+  "name": "Köylü",
+  "emoji": "🧑‍🌾",
+  "team": "koylu",
+  "category": "siradan",
+  "description": "Özel bir gücün yok. Gündüz tartış, gözlemle ve vampirleri oylamayla bul.",
+  "setup": { "fill": true },
+  "abilities": []
+}

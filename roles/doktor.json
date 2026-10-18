@@ -1,0 +1,21 @@
+{
+  "id": "doktor",
+  "name": "Doktor",
+  "emoji": "🩺",
+  "team": "koylu",
+  "category": "koruyucu",
+  "description": "Her gece bir kişiyi vampir saldırısından korursun. Kendini de koruyabilirsin ama üst üste iki gece aynı kişiyi koruyamazsın.",
+  "setup": { "minPlayers": 5, "max": 2, "every": 10, "order": 1 },
+  "abilities": [
+    {
+      "id": "koru",
+      "name": "Koru",
+      "description": "Bu gece bir kişiyi vampir saldırısından koru.",
+      "phase": "night",
+      "target": "player",
+      "allowSelf": true,
+      "noRepeatTarget": true,
+      "effect": { "type": "protect" }
+    }
+  ]
+}

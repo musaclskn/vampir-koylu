@@ -1,0 +1,10 @@
+{
+  "id": "vampir",
+  "name": "Vampir",
+  "emoji": "🧛",
+  "team": "vampir",
+  "category": "saldirgan",
+  "description": "Her gece bir kişiyi öldürebilirsin. Diğer vampirleri tanırsın. Gündüz masum görün.",
+  "setup": { "fill": true },
+  "abilities": []
+}

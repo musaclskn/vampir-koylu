@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Vampir Köylü · Moderatör</title>
+<link rel="stylesheet" href="/ortak/tema.css">
+<link rel="stylesheet" href="/mod/style.css">
+</head>
+<body data-phase="lobby">
+  <div id="conn" class="conn" role="status" aria-live="polite" hidden>Sunucuya bağlanılıyor…</div>
+
+  <header class="bar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🧛</span>
+      <span class="brand-text">VAMPİR KÖYLÜ <small>Moderatör</small></span>
+    </div>
+    <div class="phase-box">
+      <span id="phaseName" class="phase-name">Lobi</span>
+      <span id="phaseSub" class="phase-sub"></span>
+    </div>
+    <div id="timer" class="timer" aria-live="off" hidden></div>
+    <div class="adv-box">
+      <span id="advWarn" class="adv-warn" hidden></span>
+      <button id="advBtn" class="btn adv" type="button" hidden>İleri</button>
+    </div>
+    <a id="screenBtn" class="btn ghost small screen-btn" href="/ekran" target="_blank" rel="noopener" title="Ortak ekranı (TV) yeni sekmede aç">📺 <span class="long">Ortak ekranı aç</span><span class="sr">Ortak ekran</span></a>
+  </header>
+
+  <!-- ============================================================ LOBİ / KURULUM -->
+  <main id="lobby" class="lobby" hidden>
+    <aside class="col-join">
+      <section class="card join-card">
+        <h2 class="card-title">Katılım</h2>
+        <img id="qr" class="qr" src="/api/qr.svg" alt="Katılım QR kodu" width="220" height="220">
+        <div class="url-row">
+          <code id="joinUrl" class="url">…</code>
+          <button id="copyJoin" class="btn small" type="button">Kopyala</button>
+        </div>
+        <p class="hint">Telefonlar <b>aynı Wi-Fi</b>'de olmalı. QR'ı okutan direkt katılır.</p>
+        <p class="hint screen-hint">Ortak ekran (TV): <code id="screenUrl" class="url-inline">/ekran</code></p>
+      </section>
+
+      <section class="card players-card">
+        <h2 class="card-title">Oyuncular <span id="pCount" class="count-pill">0</span></h2>
+        <ul id="lobbyPlayers" class="lplist"></ul>
+        <p id="noPlayers" class="empty">Henüz kimse katılmadı. Telefonlarla QR kodu okutun.</p>
+      </section>
+    </aside>
+
+    <div class="col-setup">
+      <section class="card roles-card">
+        <div class="card-head">
+          <h2 class="card-title">Rol dağılımı <span id="autoPill" class="pill"></span></h2>
+          <button id="suggestBtn" class="btn small" type="button" title="Oyuncu sayısına göre önerilen dağılımı uygula">✨ Otomatik öner</button>
+        </div>
+        <div id="suggestBanner" class="banner" hidden>
+          <span id="suggestText"></span>
+          <button id="applySuggest" class="btn small primary" type="button">Öneriyi uygula</button>
+        </div>
+        <ul id="roleRows" class="role-rows"></ul>
+        <div class="totals">
+          <div class="total-line">
+            <span>Toplam: <b id="totalNum">0</b> rol / <b id="playerNum">0</b> oyuncu</span>
+            <span id="totalState" class="total-state"></span>
+          </div>
+          <div class="ratio" aria-hidden="true">
+            <span id="ratioKoylu" class="ratio-seg seg-koylu"></span>
+            <span id="ratioTarafsiz" class="ratio-seg seg-tarafsiz"></span>
+            <span id="ratioVampir" class="ratio-seg seg-vampir"></span>
+          </div>
+          <div id="ratioText" class="ratio-text"></div>
+        </div>
+        <ul id="problems" class="problems"></ul>
+      </section>
+
+      <div class="two">
+        <section class="card dur-card">
+          <div class="card-head">
+            <h2 class="card-title">Faz süreleri</h2>
+            <div class="presets" role="group" aria-label="Hazır süreler">
+              <button class="btn tiny" type="button" data-preset="hizli">Hızlı</button>
+              <button class="btn tiny" type="button" data-preset="normal">Normal</button>
+              <button class="btn tiny" type="button" data-preset="uzun">Uzun</button>
+            </div>
+          </div>
+          <p class="hint">Süre sadece geri sayım gösterir; fazı sen ilerletirsin.</p>
+          <div id="durRows" class="dur-rows"></div>
+        </section>
+
+        <section class="card opt-card">
+          <h2 class="card-title">Seçenekler</h2>
+          <div id="optRows" class="opt-rows"></div>
+        </section>
+      </div>
+
+      <section class="start-wrap">
+        <button id="startBtn" class="btn primary start" type="button" disabled>🩸 Oyunu Başlat</button>
+        <p id="startReason" class="start-reason"></p>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============================================================ OYUN -->
+  <main id="game" class="game" hidden>
+    <section id="winnerBox" class="card winner-box" hidden>
+      <div class="winner-main">
+        <span id="winnerEmoji" class="winner-emoji" aria-hidden="true"></span>
+        <div>
+          <h2 id="winnerTitle" class="winner-title"></h2>
+          <p id="winnerReason" class="winner-reason"></p>
+        </div>
+      </div>
+      <div class="winner-btns">
+        <button id="newGameBtn" class="btn primary" type="button">🔁 Yeni oyun (aynı oyuncularla)</button>
+        <button id="fullResetBtn" class="btn danger" type="button">🧹 Tamamen sıfırla</button>
+      </div>
+    </section>
+    <div id="pendingWin" class="banner win-banner" hidden></div>
+
+    <div class="game-grid">
+      <section class="card table-card">
+        <div class="card-head">
+          <h2 class="card-title">Oyuncular <span id="aliveCount" class="count-pill"></span></h2>
+          <span class="hint secret">🔒 Roller sadece bu panelde görünür</span>
+        </div>
+        <div class="table-wrap">
+          <table class="ptable">
+            <thead>
+              <tr>
+                <th scope="col">Oyuncu</th>
+                <th scope="col">Rol / Takım</th>
+                <th scope="col">Durum</th>
+                <th scope="col" id="phaseCol">Bu faz</th>
+                <th scope="col">Haklar</th>
+                <th scope="col"><span class="sr">Bağlantı</span>📶</th>
+                <th scope="col"><span class="sr">İşlem</span></th>
+              </tr>
+            </thead>
+            <tbody id="ptbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="card now-card">
+          <h2 id="nowTitle" class="card-title">Bu faz</h2>
+          <p id="nowHint" class="hint now-hint"></p>
+          <div id="nowBody"></div>
+        </section>
+        <section class="card report-card">
+          <h2 class="card-title">Son duyuru <span id="reportWhen" class="pill"></span></h2>
+          <div id="reportBody" class="report-body"></div>
+        </section>
+        <section class="card log-card">
+          <div class="card-head">
+            <h2 class="card-title">Olay günlüğü</h2>
+            <button id="copyLog" class="btn tiny" type="button">📋 Günlüğü kopyala</button>
+          </div>
+          <ol id="log" class="log"></ol>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="game-foot">
+      <button id="abortBtn" class="btn ghost small" type="button">↩ Oyunu bitir ve lobiye dön</button>
+    </footer>
+  </main>
+
+  <div id="loading" class="loading">Bağlanıyor…</div>
+
+  <!-- ============================================================ PENCERELER -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle" class="modal-title"></h2>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalBtns" class="modal-btns"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+
+  <script src="/mod/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "id": "suclayici",
+  "name": "Suçlayıcı",
+  "emoji": "🎭",
+  "team": "vampir",
+  "category": "bilgi",
+  "description": "Vampirsin. Gece öldürmek yerine bir kişiyi seçersin: Kahin o kişiye baktığında 'Saldırgan' görür. Bu yeteneği kullandığın gece öldüremezsin.",
+  "setup": { "minPlayers": 10, "max": 1, "order": 2 },
+  "abilities": [
+    {
+      "id": "suclama",
+      "name": "Suç At",
+      "description": "Seçtiğin kişi bu gece Kahin'e şüpheli görünür. (Bu gece öldüremezsin.)",
+      "phase": "night",
+      "target": "player",
+      "allowSelf": false,
+      "effect": { "type": "frame" }
+    }
+  ]
+}

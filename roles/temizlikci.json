@@ -1,0 +1,20 @@
+{
+  "id": "temizlikci",
+  "name": "Temizlikçi",
+  "emoji": "🧹",
+  "team": "vampir",
+  "category": "gizemli",
+  "description": "Vampirsin. Gece öldürmek yerine bir kişiyi seçersin: o gece ölürse rolü sabah açıklanmaz. Bu yeteneği kullandığın gece öldüremezsin.",
+  "setup": { "minPlayers": 6, "max": 1, "order": 1 },
+  "abilities": [
+    {
+      "id": "temizle",
+      "name": "İzleri Sil",
+      "description": "Seçtiğin kişi bu gece ölürse rolü gizli kalır. (Bu gece öldüremezsin.)",
+      "phase": "night",
+      "target": "player",
+      "allowSelf": true,
+      "effect": { "type": "hide_role" }
+    }
+  ]
+}

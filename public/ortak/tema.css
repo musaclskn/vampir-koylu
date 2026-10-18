@@ -1,0 +1,61 @@
+/* Vampir Köylü — ortak tema değişkenleri (moderatör paneli ve ortak ekran kullanır).
+ * Telefon arayüzü (public/oyuncu/style.css) aynı değerleri kendi içinde tanımlar; bu dosya ona dokunmaz. */
+:root {
+  color-scheme: dark;
+  --ink: #0b0710;
+  --ink-2: #140b18;
+  --panel: rgba(22, 12, 26, 0.86);
+  --panel-solid: #170d1b;
+  --panel-2: rgba(40, 22, 44, 0.7);
+  --line: rgba(242, 180, 90, 0.18);
+  --line-strong: rgba(242, 180, 90, 0.45);
+  --text: #f1e7da;
+  --muted: #c2b3a2;
+  --faint: #8f8173;
+  --candle: #f2b45a;
+  --candle-hi: #ffd890;
+  --blood: #c0213a;
+  --blood-hi: #e0566c;
+  --blood-deep: #6e0d20;
+  --violet: #8a5cc4;
+  --moon: #dfe4ff;
+  --ok: #8fd19e;
+  --warn: #ffb35c;
+  --bad: #ff8a8a;
+  --team-koylu: #f2b45a;
+  --team-vampir: #e0566c;
+  --team-tarafsiz: #b48ce6;
+  --serif: Georgia, "Times New Roman", "Liberation Serif", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+}
+
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--ink); -webkit-text-size-adjust: 100%; }
+body { margin: 0; color: var(--text); background: var(--ink); font-family: var(--sans); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--candle-hi); outline-offset: 2px; }
+
+.avatar {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3b2340, #170c1a); border: 1px solid var(--line);
+  line-height: 1;
+}
+.team-koylu { --team: var(--team-koylu); }
+.team-vampir { --team: var(--team-vampir); }
+.team-tarafsiz { --team: var(--team-tarafsiz); }
+
+/* bağlantı uyarı bandı */
+.conn {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100; text-align: center;
+  padding: 8px 12px; background: var(--blood-deep); color: #fff; font-weight: 600;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .5); animation: connpulse 1.6s ease-in-out infinite;
+}
+@keyframes connpulse { 50% { background: #8f1a2f; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
