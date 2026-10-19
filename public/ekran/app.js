@@ -251,7 +251,8 @@
           h('div', { class: 'cap' }, 'Katılmak için telefonla okut'),
           h('img', { class: 'qr-img', src: `/api/qr.svg?u=${encodeURIComponent(v.joinUrl || '')}`, alt: 'Katılım QR kodu' }),
           h('div', { class: 'join-url' }, (v.joinUrl || '').replace(/^https?:\/\//, '').replace(/\/$/, '')),
-          h('div', { class: 'tip' }, '📶 Telefonun bu bilgisayarla aynı Wi-Fi ağında olsun')),
+          // Wi-Fi uyarısı sadece yerel ağda oynarken (adres bir IP ise); internette yayınlarken gereksiz
+          /^http:\/\/\d{1,3}(\.\d{1,3}){3}[:/]/.test(v.joinUrl || '') && h('div', { class: 'tip' }, '📶 Telefonun bu bilgisayarla aynı Wi-Fi ağında olsun')),
         right);
     },
 
