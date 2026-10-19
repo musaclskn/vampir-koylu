@@ -143,6 +143,7 @@ test('/api/info: bu bilgisayardan katılım/ekran/mod adreslerini verir', async 
       joinUrl: 'http://192.168.1.34:3000/',
       screenUrl: 'http://192.168.1.34:3000/ekran',
       modUrl: `http://localhost:${srv.port}/mod`,
+      passwordMode: false,
     });
     // panel ve ekran dosyaları sunuluyor
     for (const p of ['/mod/app.js', '/mod/style.css', '/ekran/app.js', '/ekran/style.css', '/ortak/tema.css']) {

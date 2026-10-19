@@ -144,6 +144,7 @@
       S.connected = false;
       setConnBand();
       scheduleReconnect();
+      checkSession();
     };
     ws.onerror = () => { /* onclose gelecek */ };
   }
@@ -178,8 +179,25 @@
       S.info = await r.json();
       $('joinUrl').textContent = S.info.joinUrl;
       $('screenUrl').textContent = S.info.screenUrl;
+      $('logoutBtn').hidden = !S.info.passwordMode;
+      if (S.info.passwordMode) $('joinHint').textContent = 'QR\'ı okutan ya da bu adresi açan herkes katılır.';
     } catch { /* bir sonraki bağlantıda tekrar */ }
   }
+
+  // Şifre modunda oturum süresi dolduysa (sunucu 403 verir) giriş ekranına dön
+  async function checkSession() {
+    if (!S.info || !S.info.passwordMode) return;
+    try {
+      const r = await fetch('/api/info', { cache: 'no-store' });
+      if (r.status === 403) location.reload();
+    } catch { /* sunucuya ulaşılamıyor: yeniden bağlanma sürüyor */ }
+  }
+
+  $('logoutBtn').addEventListener('click', async () => {
+    if (!(await confirmBox('Çıkış yap', 'Moderatör oturumu kapanacak. Oyun sunucuda devam eder; tekrar şifreyle girebilirsin.', 'Çıkış yap', 'danger'))) return;
+    try { await fetch('/api/mod/logout', { method: 'POST', cache: 'no-store' }); } catch { /* yine de yenile */ }
+    location.reload();
+  });
 
   function onMessage(msg) {
     switch (msg.type) {

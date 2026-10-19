@@ -1,0 +1,13 @@
+# Render.com "Blueprint" dosyası: GitHub reposunu Render'a bağlayınca bu ayarlarla kurulur.
+# MOD_PASSWORD değeri buraya YAZILMAZ; Render kurulum sırasında sorar (sync: false).
+services:
+  - type: web
+    name: vampir-koylu
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/avatars
+    envVars:
+      - key: MOD_PASSWORD
+        sync: false

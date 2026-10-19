@@ -78,6 +78,36 @@ npm test          # motor + sunucu + panel/ekran gizlilik testleri (gerçek WebS
 npm run simulate  # rastgele botlarla 400 oyun
 ```
 
+## İnternette yayınlama (GitHub + Render)
+
+GitHub Pages bu oyunu çalıştıramaz: Pages sadece sabit dosya sunar, oyunun ise WebSocket'li bir Node.js
+sunucusuna ihtiyacı var. Kod GitHub'da durur, sunucuyu ücretsiz bir servis (Render) GitHub'dan alıp çalıştırır.
+Böylece oyuncuların aynı Wi-Fi'da olması gerekmez; adresi bilen herkes katılır.
+
+1. Kodu GitHub repona yükle (`render.yaml` dosyası da gitsin).
+2. https://render.com → GitHub hesabınla giriş yap → **New → Blueprint** → bu repoyu seç.
+3. Render `MOD_PASSWORD` değerini sorar: moderatör şifreni yaz (en az 10-12 karakter, başka yerde kullanmadığın bir şey).
+4. Kurulum bitince adres `https://vampir-koylu-xxxx.onrender.com` gibi olur:
+   - Oyuncular: ana adres (QR kod bunu gösterir)
+   - Moderatör: `/mod` → şifre ekranı → panel
+   - Ortak ekran: `/ekran`
+5. Kodu GitHub'da güncellediğinde Render kendiliğinden yeniden kurar.
+
+Bilmen gerekenler:
+
+- **Ücretsiz planda sunucu 15 dakika kimse girmeyince uyur.** İlk açılış ~1 dakika sürebilir; oyundan önce
+  `/mod`'u bir kez aç.
+- **Oyun bellekte tutulur.** Sunucu uyursa ya da yeniden kurulursa süren oyun ve lobi silinir. Oyun ortasında kod güncelleme.
+- Şifreyi değiştirmek: Render → servis → **Environment** → `MOD_PASSWORD`.
+- Render dışında bir yerde çalıştırırsan iki ortam değişkeni ver: `PUBLIC_URL` (ör. `https://oyunum.example.com`) ve `MOD_PASSWORD`.
+
+### Moderatör şifresi
+
+- `MOD_PASSWORD` ayarlıysa `/mod` her cihazdan açılır ama önce şifre ister (bu bilgisayardan da). Oturum 12 saat sürer,
+  panelin sağ üstündeki **🚪 Çıkış** ile kapatılır. Aynı adresten 5 yanlış denemede giriş 1 dakika kilitlenir.
+- Ayarlı değilse eski davranış: panel sadece sunucunun çalıştığı bilgisayardan, şifresiz açılır.
+- Evde şifreyle denemek için: PowerShell `$env:MOD_PASSWORD="sifren"; npm start`.
+
 ## Ağ sorunları
 
 1. **Aynı Wi-Fi:** bilgisayar ve tüm telefonlar aynı ağda olmalı. Telefonun mobil verisi değil Wi-Fi'si açık olsun.
@@ -100,7 +130,9 @@ npm run simulate  # rastgele botlarla 400 oyun
 - `roles/` rol JSON'ları ve şema açıklaması (`roles/README.md`)
 - `server/game/` oyun motoru (`engine.js`), etki blokları (`effects.js`), takımlar (`teams.js`), rol önerisi (`setup.js`), avatarlar
 - `server/app.js` HTTP + WebSocket sunucusu, `server/net.js` loopback kontrolü ve LAN adresi seçimi, `server/index.js` giriş noktası,
-  `server/open.js` tarayıcıyı açma
+  `server/open.js` tarayıcıyı açma, `server/auth.js` moderatör şifresi ve oturumları
+- `public/giris/` moderatör giriş ekranı (sadece `MOD_PASSWORD` ayarlıyken)
+- `render.yaml` Render.com kurulum ayarları
 - `public/oyuncu/` telefon arayüzü, `public/mod/` moderatör paneli, `public/ekran/` ortak ekran (hepsi saf HTML/CSS/JS, build yok),
   `public/ortak/tema.css` panel ve ekranın ortak renkleri
 - `tools/mod-cli.js` eski, isteğe bağlı komut satırı moderatör aracı
@@ -124,7 +156,9 @@ bağlantı başına saniyede ~10 mesaj.
 - Ekran görünümü (`publicView`) oyun başladıktan sonra `roleCounts: [{id, name, emoji, team, count}]` içerir
   (sadece adetler, kimde olduğu değil; `options.showRoleCounts` ile kapatılabilir). Moderatör görünümü ek olarak
   `roles[].description/abilities`, `lastReport` içerir.
-- HTTP: `/api/info` (sadece bu bilgisayardan) → `{joinUrl, screenUrl, modUrl}`; `/api/qr.svg`; `/api/avatars`.
+- HTTP: `/api/info` (sadece moderatöre) → `{joinUrl, screenUrl, modUrl, passwordMode}`; `/api/qr.svg`; `/api/avatars`;
+  `POST /api/mod/login {password}` (başarılıysa `vk_mod` HttpOnly çerezi), `POST /api/mod/logout`.
+  Şifre modunda mod WebSocket'i bu çerezi ve aynı-origin'i ister.
 - Mod → sunucu: `setConfig {config:{roleCounts, durations, options}}` (`roleCounts: {}` = otomatik öneri modu;
   `options`: `revealRoleOnDeath`, `announceSaves`, `showRoleCounts`), `start`, `advance`, `kick {playerId}`,
   `updatePlayer {playerId, name?, avatar?}`, `reset {keepPlayers?: boolean}` (varsayılan: oyuncuları koruyup lobiye dön),

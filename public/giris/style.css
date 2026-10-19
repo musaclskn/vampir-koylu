@@ -1,0 +1,29 @@
+/* Vampir Köylü — moderatör giriş ekranı */
+body {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 50% 0%, #2a1230 0%, var(--ink) 65%);
+}
+.wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.card {
+  width: 100%; max-width: 360px; padding: 32px 28px; border-radius: 18px;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+  display: flex; flex-direction: column; text-align: center;
+}
+.mark { font-size: 48px; line-height: 1; margin-bottom: 8px; }
+.title { margin: 0; font-family: var(--serif); letter-spacing: .08em; font-size: 24px; color: var(--candle-hi); }
+.sub { margin: 4px 0 24px; color: var(--muted); }
+.label { text-align: left; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+.input {
+  width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 16px;
+  background: var(--ink-2); border: 1px solid var(--line-strong);
+}
+.input:focus { outline: none; border-color: var(--candle); box-shadow: 0 0 0 3px rgba(242, 180, 90, .25); }
+.error { margin: 10px 0 0; color: var(--bad); font-size: 14px; text-align: left; }
+.btn {
+  margin-top: 18px; padding: 12px; border-radius: 10px; border: 0; font-weight: 700; font-size: 16px;
+  background: linear-gradient(180deg, var(--blood-hi), var(--blood)); color: #fff;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
+.btn:disabled { opacity: .6; }
+.hint { margin: 20px 0 0; font-size: 13px; color: var(--faint); }
+.hint a { color: var(--candle); }

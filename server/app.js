@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 const { Game, GameError } = require('./game/engine');
 const { AVATARS } = require('./game/avatars');
 const { isLoopback } = require('./net');
+const { createAuth } = require('./auth');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MAX_MSG_BYTES = 4096;
@@ -16,11 +17,14 @@ const HEARTBEAT_MS = 15000;
 const CLIENT_KINDS = new Set(['oyuncu', 'ekran', 'mod']);
 
 /**
- * @param {{roles: Map, joinUrl?: string, game?: Game, log?: (…args) => void}} opts
+ * @param {{roles: Map, joinUrl?: string, game?: Game, log?: (…args) => void, modPassword?: string, trustProxy?: boolean}} opts
+ * modPassword verilirse moderatör paneli her yerden şifreyle açılır; verilmezse sadece bu bilgisayardan.
+ * trustProxy: sunucu bir barındırma servisinin (Render vb.) arkasındaysa X-Forwarded-* başlıklarına güven.
  */
-function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = console.log } = {}) {
+function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = console.log, modPassword, trustProxy = false } = {}) {
   game = game || new Game({ roles });
   const state = { joinUrl, qrSvg: null };
+  const auth = createAuth({ password: modPassword });
 
   // ------------------------------------------------------------ HTTP
   const app = express();
@@ -35,9 +39,23 @@ function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = c
     next();
   });
 
-  const onlyLoopback = (req, res, next) => {
-    if (isLoopback(req.socket.remoteAddress)) return next();
-    res.status(403).type('text/plain; charset=utf-8').send('403 - Moderatör paneli sadece sunucunun çalıştığı bilgisayardan açılabilir.');
+  /** Bu istek moderatör yetkisine sahip mi? Şifre modunda geçerli oturum, değilse bu bilgisayar. */
+  const canMod = (req) => (auth.enabled ? auth.hasSession(req) : isLoopback(req.socket.remoteAddress));
+  const clientIp = (req) => {
+    if (trustProxy) {
+      // Barındırma servisi gerçek adresi en sona ekler (baştakileri istemci uydurabilir)
+      const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (xff.length) return xff[xff.length - 1];
+    }
+    return req.socket.remoteAddress || '?';
+  };
+  const isHttps = (req) => req.secure || (trustProxy && req.headers['x-forwarded-proto'] === 'https');
+
+  const onlyMod = (req, res, next) => {
+    if (canMod(req)) return next();
+    res.status(403).type('text/plain; charset=utf-8').send(auth.enabled
+      ? '403 - Önce moderatör şifresiyle giriş yapmalısın: /mod'
+      : '403 - Moderatör paneli sadece sunucunun çalıştığı bilgisayardan açılabilir.');
   };
 
   const page = (dir) => (req, res) => {
@@ -52,18 +70,43 @@ function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = c
   app.use('/ortak', express.static(path.join(PUBLIC_DIR, 'ortak'), staticOpts));
   app.get(['/ekran', '/ekran/'], page('ekran'));
   app.use('/ekran', express.static(path.join(PUBLIC_DIR, 'ekran'), staticOpts));
-  app.use('/mod', onlyLoopback);
-  app.get(['/mod', '/mod/'], page('mod'));
+  // Şifre modunda giriş yapmamış biri /mod'a gelirse giriş ekranını görür
+  app.get(['/mod', '/mod/'], (req, res, next) => {
+    if (canMod(req)) return page('mod')(req, res);
+    if (auth.enabled) return page('giris')(req, res);
+    return onlyMod(req, res, next);
+  });
+  app.use('/giris', express.static(path.join(PUBLIC_DIR, 'giris'), staticOpts));
+  app.use('/mod', onlyMod);
   app.use('/mod', express.static(path.join(PUBLIC_DIR, 'mod'), staticOpts));
 
+  app.post('/api/mod/login', express.json({ limit: '1kb' }), (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!auth.enabled) return res.status(404).json({ ok: false, message: 'Şifreli giriş kapalı.' });
+    const r = auth.login(clientIp(req), req.body && req.body.password);
+    if (!r.ok) {
+      log(`[mod] başarısız giriş denemesi (${clientIp(req)})`);
+      return res.status(401).json({ ok: false, message: r.message });
+    }
+    res.set('Set-Cookie', auth.cookieFor(r.token, isHttps(req)));
+    return res.json({ ok: true });
+  });
+  app.post('/api/mod/logout', (req, res) => {
+    auth.logout(req);
+    res.set('Set-Cookie', auth.cookieFor('', isHttps(req)));
+    res.json({ ok: true });
+  });
+
   app.get('/api/avatars', (req, res) => res.json(AVATARS));
-  // Moderatör paneli için temel adresler (sır yok, ama sadece bu bilgisayardan)
-  app.get('/api/info', onlyLoopback, (req, res) => {
+  // Moderatör paneli için temel adresler (sır yok, ama sadece moderatöre)
+  app.get('/api/info', onlyMod, (req, res) => {
     res.set('Cache-Control', 'no-store');
     const port = server.address() && server.address().port;
     let screenUrl;
+    let modUrl = `http://localhost:${port}/mod`;
     try { screenUrl = new URL('/ekran', state.joinUrl).href; } catch { screenUrl = '/ekran'; }
-    res.json({ joinUrl: state.joinUrl, screenUrl, modUrl: `http://localhost:${port}/mod` });
+    if (auth.enabled) { try { modUrl = new URL('/mod', state.joinUrl).href; } catch { /* yerel adres kalır */ } }
+    res.json({ joinUrl: state.joinUrl, screenUrl, modUrl, passwordMode: auth.enabled });
   });
   app.get('/api/qr.svg', async (req, res, next) => {
     try {
@@ -97,10 +140,10 @@ function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = c
     };
     if (!url || url.pathname !== '/ws' || !CLIENT_KINDS.has(kind)) return reject(400, 'Bad Request');
     if (kind === 'mod') {
-      if (!isLoopback(req.socket.remoteAddress)) return reject(403, 'Forbidden');
-      // Bu bilgisayarda açık başka bir sitenin moderatör bağlantısı kurmasını engelle
+      if (!canMod(req)) return reject(403, 'Forbidden');
+      // Başka bir sitenin moderatör bağlantısı kurmasını engelle
       const origin = req.headers.origin;
-      if (origin && !isLocalOrigin(origin)) return reject(403, 'Forbidden');
+      if (origin && !(auth.enabled ? isSameOrigin(origin, req) : isLocalOrigin(origin))) return reject(403, 'Forbidden');
     }
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req, kind));
   });
@@ -133,6 +176,9 @@ function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = c
 
   function isLocalOrigin(origin) {
     try { return isLoopback(new URL(origin).hostname) || new URL(origin).hostname === 'localhost'; } catch { return false; }
+  }
+  function isSameOrigin(origin, req) {
+    try { return new URL(origin).host === req.headers.host; } catch { return false; }
   }
 
   function takeToken(c) {

@@ -12,10 +12,10 @@ const { AVATARS } = require('../server/game/avatars');
 const { ROLES_DIR } = require('./helpers');
 
 // ------------------------------------------------------------------ yardımcılar
-async function startServer(host = '127.0.0.1') {
+async function startServer(host = '127.0.0.1', opts = {}) {
   const roles = loadRoles(ROLES_DIR);
   const logs = [];
-  const srv = createServer({ roles, joinUrl: 'http://127.0.0.1:0/', log: (...a) => logs.push(a.join(' ')) });
+  const srv = createServer({ roles, joinUrl: 'http://127.0.0.1:0/', log: (...a) => logs.push(a.join(' ')), ...opts });
   await new Promise((r) => srv.server.listen(0, host, r));
   srv.port = srv.server.address().port;
   srv.logs = logs;
@@ -93,15 +93,29 @@ test('lanAddresses: ev ağı öne çıkar, sanal/VPN arayüzleri geriye düşer'
 });
 
 // ------------------------------------------------------------------ HTTP
-function get(port, path, host = '127.0.0.1') {
+function get(port, path, host = '127.0.0.1', headers = {}) {
   return new Promise((resolve, reject) => {
-    http.get({ host, port, path }, (res) => {
+    http.get({ host, port, path, headers }, (res) => {
       let body = '';
       res.on('data', (d) => { body += d; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
     }).on('error', reject);
   });
 }
+
+function post(port, path, json, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(json || {});
+    const req = http.request({ host: '127.0.0.1', port, path, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), ...headers } }, (res) => {
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: body ? JSON.parse(body) : null }));
+    });
+    req.on('error', reject);
+    req.end(data);
+  });
+}
+const cookieOf = (res) => String((res.headers['set-cookie'] || [])[0] || '').split(';')[0];
 
 test('HTTP rotaları çalışır', async () => {
   const srv = await startServer();
@@ -156,6 +170,81 @@ test('mod WS: yabancı Origin reddedilir, bilinmeyen istemci türü reddedilir',
     local.close();
     const weird = new Client(srv.port, 'admin');
     await assert.rejects(weird.opened, (e) => e.status === 400);
+  } finally { await srv.close(); }
+});
+
+// ------------------------------------------------------------------ şifreli moderatör girişi
+test('şifre modu: giriş yapmadan panel, bilgi ve mod WS kapalı (bu bilgisayardan bile)', async () => {
+  const srv = await startServer('127.0.0.1', { modPassword: 'gizli-sifre' });
+  try {
+    const page = await get(srv.port, '/mod');
+    assert.equal(page.status, 200);
+    assert.match(page.body, /\/giris\/app\.js/, 'giriş ekranı gelmeli');
+    assert.doesNotMatch(page.body, /\/mod\/app\.js/);
+    assert.equal((await get(srv.port, '/giris/app.js')).status, 200);
+    assert.equal((await get(srv.port, '/mod/app.js')).status, 403);
+    assert.equal((await get(srv.port, '/api/info')).status, 403);
+    const mod = new Client(srv.port, 'mod');
+    await assert.rejects(mod.opened, (e) => e.status === 403);
+    // oyuncu ve ekran şifresiz açık
+    assert.equal((await get(srv.port, '/')).status, 200);
+    const p = new Client(srv.port, 'oyuncu');
+    await p.opened;
+    p.close();
+  } finally { await srv.close(); }
+});
+
+test('şifre modu: yanlış şifre reddedilir, doğru şifre oturum açar, çıkış oturumu kapatır', async () => {
+  const srv = await startServer('127.0.0.1', { modPassword: 'gizli-sifre' });
+  try {
+    const bad = await post(srv.port, '/api/mod/login', { password: 'yanlis' });
+    assert.equal(bad.status, 401);
+    assert.equal(bad.headers['set-cookie'], undefined);
+    assert.equal((await post(srv.port, '/api/mod/login', {})).status, 401);
+
+    const ok = await post(srv.port, '/api/mod/login', { password: 'gizli-sifre' });
+    assert.equal(ok.status, 200);
+    const setCookie = ok.headers['set-cookie'][0];
+    assert.match(setCookie, /HttpOnly/);
+    assert.match(setCookie, /SameSite=Strict/);
+    const Cookie = cookieOf(ok);
+
+    const page = await get(srv.port, '/mod', '127.0.0.1', { Cookie });
+    assert.match(page.body, /\/mod\/app\.js/, 'panel gelmeli');
+    const info = JSON.parse((await get(srv.port, '/api/info', '127.0.0.1', { Cookie })).body);
+    assert.equal(info.passwordMode, true);
+
+    const mod = new Client(srv.port, 'mod', { headers: { Cookie, Origin: `http://127.0.0.1:${srv.port}` } });
+    await mod.opened;
+    await mod.until((v) => Array.isArray(v.roles));
+    mod.close();
+    const evil = new Client(srv.port, 'mod', { headers: { Cookie, Origin: 'http://kotu-site.example' } });
+    await assert.rejects(evil.opened, (e) => e.status === 403);
+    const forged = new Client(srv.port, 'mod', { headers: { Cookie: 'vk_mod=uydurma' } });
+    await assert.rejects(forged.opened, (e) => e.status === 403);
+
+    assert.equal((await post(srv.port, '/api/mod/logout', {}, { Cookie })).status, 200);
+    assert.equal((await get(srv.port, '/api/info', '127.0.0.1', { Cookie })).status, 403);
+  } finally { await srv.close(); }
+});
+
+test('şifre modu: 5 yanlış denemeden sonra doğru şifre de bir süre reddedilir', async () => {
+  const srv = await startServer('127.0.0.1', { modPassword: 'gizli-sifre' });
+  try {
+    for (let i = 0; i < 5; i++) assert.equal((await post(srv.port, '/api/mod/login', { password: `x${i}` })).status, 401);
+    const locked = await post(srv.port, '/api/mod/login', { password: 'gizli-sifre' });
+    assert.equal(locked.status, 401);
+    assert.match(locked.body.message, /Çok fazla/);
+  } finally { await srv.close(); }
+});
+
+test('şifre yoksa giriş uç noktası kapalı, panel eskisi gibi bu bilgisayardan şifresiz açılır', async () => {
+  const srv = await startServer();
+  try {
+    assert.equal((await post(srv.port, '/api/mod/login', { password: 'x' })).status, 404);
+    const page = await get(srv.port, '/mod');
+    assert.match(page.body, /\/mod\/app\.js/);
+    assert.equal(JSON.parse((await get(srv.port, '/api/info')).body).passwordMode, false);
   } finally { await srv.close(); }
 });
 
