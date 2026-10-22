@@ -23,6 +23,7 @@ const defaultConfig = () => ({
     revealRoleOnDeath: true, // ölenin rolü herkese açıklansın
     announceSaves: false, // "birisi saldırıya uğradı ama kurtuldu" duyurulsun
     showRoleCounts: true, // oyun başlayınca hangi rolden kaç tane olduğu (kimde olduğu değil) ortak ekranda görünsün
+    vampiresKillSeparately: true, // açık: her vampir ayrı kişiyi keser; kapalı: vampirler ortak tek kişiyi keser (en çok seçilen, eşitlikte rastgele)
   },
 });
 
@@ -382,6 +383,15 @@ class Game extends EventEmitter {
       q.eff.night(ctx, q.actor, q.target, q.ab.effect);
     }
 
+    // ortak kesim: vampirler tek kurban seçer (en çok oy alan; eşitlikte rastgele)
+    if (!this.config.options.vampiresKillSeparately && ctx.attacks.length > 1) {
+      const votes = new Map();
+      for (const a of ctx.attacks) votes.set(a.target, (votes.get(a.target) || 0) + 1);
+      const top = Math.max(...votes.values());
+      const pick = this._shuffle([...votes.entries()].filter(([, c]) => c === top).map(([t]) => t))[0];
+      ctx.attacks = [{ by: null, target: pick }];
+    }
+
     // saldırıları çöz
     const targets = [];
     for (const a of ctx.attacks) if (!targets.includes(a.target)) targets.push(a.target);
@@ -505,6 +515,16 @@ class Game extends EventEmitter {
     return state;
   }
 
+  /** Gece takım arkadaşının seçimi (sadece takımını bilen takımlara, yani vampirlere gösterilir). */
+  _mateChoice(o) {
+    const act = this.nightActions[o.id];
+    if (!act) return null;
+    if (act.abilityId.startsWith('__')) return { pass: true };
+    const ab = this._abilitiesOf(o).find((a) => a.id === act.abilityId);
+    const t = this.players.get(act.targetId);
+    return { abilityName: ab ? ab.name : '', targetId: act.targetId, targetName: t ? t.name : '' };
+  }
+
   /** Bir oyuncunun telefonu için görünüm. */
   viewFor(playerId) {
     const p = this.players.get(playerId) || fail('Oyuncu bulunamadı.');
@@ -521,7 +541,10 @@ class Game extends EventEmitter {
     }));
     const teammates = team.knowsTeam
       ? [...this.players.values()].filter((o) => o.id !== p.id && this._role(o).team === role.team)
-        .map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, alive: this._pubAlive(o), role: this._roleCard(o.roleId) }))
+        .map((o) => ({
+          id: o.id, name: o.name, avatar: o.avatar, alive: this._pubAlive(o), role: this._roleCard(o.roleId),
+          choice: this.phase === 'night' ? this._mateChoice(o) : null,
+        }))
       : [];
     state.me = {
       id: p.id, name: p.name, avatar: p.avatar, alive: p.alive,

@@ -95,3 +95,35 @@ test('Soytarı gece vampirce öldürülürse kazanmaz, oyun normal sürer', () =
   assert.equal(ps[1].alive, false);
   assert.equal(g.winner, null);
 });
+
+test('vampirler gece takım arkadaşlarının seçimini görür, köylüler görmez', () => {
+  const { g, ps } = timed(8, { koylu: 5, vampir: 2, doktor: 1 }, { 0: 'vampir', 1: 'vampir', 2: 'koylu' });
+  g.advance();
+  g.submitNight(ps[1].id, { abilityId: 'oldur', targetId: ps[2].id });
+  const mate = g.viewFor(ps[0].id).me.teammates[0];
+  assert.equal(mate.choice.targetId, ps[2].id);
+  assert.equal(mate.choice.targetName, ps[2].name);
+  assert.equal(g.viewFor(ps[3].id).me.teammates.length, 0);
+  assert.doesNotMatch(JSON.stringify(g.publicView()), /targetName/);
+});
+
+test('vampiresKillSeparately kapalıyken vampirler ortak tek kişiyi keser', () => {
+  const { g, ps } = timed(9, { koylu: 5, vampir: 3, doktor: 1 }, { 0: 'vampir', 1: 'vampir', 2: 'vampir', 3: 'koylu', 4: 'koylu' });
+  g.config.options.vampiresKillSeparately = false;
+  g.advance();
+  g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: ps[3].id });
+  g.submitNight(ps[1].id, { abilityId: 'oldur', targetId: ps[3].id });
+  g.submitNight(ps[2].id, { abilityId: 'oldur', targetId: ps[4].id });
+  g.advance();
+  assert.equal(ps[3].alive, false); // çoğunluk
+  assert.equal(ps[4].alive, true);
+  assert.equal(g.report.deaths.length, 1);
+});
+
+test('vampiresKillSeparately açıkken (varsayılan) 3 vampir 3 kişiyi öldürebilir', () => {
+  const { g, ps } = timed(9, { koylu: 5, vampir: 3, doktor: 1 }, { 0: 'vampir', 1: 'vampir', 2: 'vampir', 3: 'koylu', 4: 'koylu', 5: 'koylu' });
+  g.advance();
+  [3, 4, 5].forEach((t, i) => g.submitNight(ps[i].id, { abilityId: 'oldur', targetId: ps[t].id }));
+  g.advance();
+  assert.equal(g.report.deaths.length, 3);
+});

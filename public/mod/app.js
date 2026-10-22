@@ -31,6 +31,7 @@
     { key: 'revealRoleOnDeath', title: 'Ölünce rol açıklansın', desc: 'Ölen ya da elenen oyuncunun rolü herkese gösterilir (Temizlikçi gizlediyse hariç).' },
     { key: 'announceSaves', title: 'Kurtarmalar duyurulsun', desc: 'Doktor birini kurtardığında sabah "biri saldırıya uğradı ama kurtuldu" denir (kim olduğu söylenmez).' },
     { key: 'showRoleCounts', title: 'Rol adetleri gösterilsin', desc: 'Oyun başlayınca ortak ekranda hangi rolden kaç tane olduğu görünür (kimde olduğu değil).' },
+    { key: 'vampiresKillSeparately', title: 'Vampirler ayrı ayrı kessin', desc: 'Açık: her vampir ayrı bir kişiyi öldürebilir (3 vampir = 3 kişi). Kapalı: vampirler ortak tek kişiyi keser; en çok seçilen ölür, eşitlikte rastgele biri.' },
   ];
   const ADV_LOCK_MS = 1200;
   const ARM_MS = 5000;
