@@ -16,8 +16,9 @@ const ABILITY_GAME_PHASES = { night: ['night'], day: ['day', 'vote'] };
 
 const defaultConfig = () => ({
   roleCounts: {}, // boş = otomatik: oyuncu sayısına göre önerilen dağılım kullanılır
-  // saniye; 0 = süresiz. Yarı otomatik modda süre sadece sayaç gösterir, fazı moderatör ilerletir.
-  durations: { night: 90, day: 300, vote: 60 },
+  // saniye; 0 = süresiz (o faz moderatör düğmesiyle ilerler). Süre dolunca faz kendiliğinden ilerler (tick()).
+  // dawn = ölenlerin açıklandığı şafak, voteresult = oylama sonucu ekranı.
+  durations: { night: 90, day: 300, vote: 60, dawn: 15, voteresult: 15 },
   options: {
     revealRoleOnDeath: true, // ölenin rolü herkese açıklansın
     announceSaves: false, // "birisi saldırıya uğradı ama kurtuldu" duyurulsun
@@ -97,7 +98,7 @@ class Game extends EventEmitter {
   }
   _setPhase(phase) {
     this.phase = phase;
-    const secs = { night: this.config.durations.night, day: this.config.durations.day, vote: this.config.durations.vote }[phase];
+    const secs = this.config.durations[phase]; // rolereveal / ended için tanımsız -> süresiz
     this.phaseEndsAt = secs > 0 ? this.now() + secs * 1000 : null;
     this._changed();
   }
@@ -243,6 +244,14 @@ class Game extends EventEmitter {
       case 'voteresult': return this._enterNight();
       default: return fail('Geçersiz faz.');
     }
+  }
+
+  /** Süresi dolan fazı moderatör onayı beklemeden ilerletir (sunucu saniyede bir çağırır). */
+  tick() {
+    if (!this.phaseEndsAt || this.now() < this.phaseEndsAt) return false;
+    if (!['night', 'dawn', 'day', 'vote', 'voteresult'].includes(this.phase)) return false;
+    this.advance(); // hazır olmayanlara bakılmaz
+    return true;
   }
 
   _enterNight() {
@@ -411,7 +420,8 @@ class Game extends EventEmitter {
     const rows = [...tally.entries()].map(([playerId, count]) => ({ playerId, count })).sort((a, b) => b.count - a.count);
     let eliminated = null;
     let text = 'Oylamada çoğunluk sağlanamadı, kimse elenmedi.';
-    if (rows.length && (rows.length === 1 || rows[0].count > rows[1].count)) {
+    // Asılmak için "as" oyları yaşayanların yarısından fazla olmalı (pas ve oy kullanmayanlar sayılır).
+    if (rows.length && rows[0].count * 2 > this._alive().length && (rows.length === 1 || rows[0].count > rows[1].count)) {
       const t = this.players.get(rows[0].playerId);
       if (t && t.alive) {
         this._kill(t, { cause: 'oy', announce: 'now' });

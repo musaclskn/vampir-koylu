@@ -52,7 +52,7 @@ function summary(v) {
     if (v.report && v.report.text) lines.push(`\nDuyuru: ${v.report.text}`);
     if (v.report && v.report.tally && v.report.tally.length) {
       const name = (id) => (v.players.find((p) => p.id === id) || {}).name || id;
-      lines.push('Oylar: ' + v.report.tally.map((t) => `${name(t.playerId)}=${t.count}`).join(', ') + (v.report.abstain ? `, çekimser=${v.report.abstain}` : ''));
+      lines.push('Oylar: ' + v.report.tally.map((t) => `${name(t.playerId)}=${t.count}`).join(', ') + (v.report.abstain ? `, pas=${v.report.abstain}` : ''));
     }
     if (v.winner) lines.push(`\nKAZANAN: ${v.winner.reason}`);
   }

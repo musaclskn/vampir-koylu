@@ -192,7 +192,7 @@
   function tick() {
     const el = $('topTimer');
     const v = S.view;
-    if (!v || !v.phaseEndsAt || !['night', 'day', 'vote'].includes(v.phase)) { el.textContent = ''; el.className = 'timer'; return; }
+    if (!v || !v.phaseEndsAt || !['night', 'dawn', 'day', 'vote', 'voteresult'].includes(v.phase)) { el.textContent = ''; el.className = 'timer'; return; }
     const left = Math.round((v.phaseEndsAt - (Date.now() + S.offset)) / 1000);
     if (left <= 0) { el.textContent = 'Süre doldu'; el.className = 'timer over'; return; }
     const m = Math.floor(left / 60), s = left % 60;
@@ -457,7 +457,7 @@
           const p = playerById(t.playerId) || { name: '?', avatar: null };
           return tallyRow(avatar(p.avatar), p.name, t.count, max);
         }),
-        r.abstain ? tallyRow(h('span', { class: 'avatar', 'aria-hidden': 'true' }, '🤐'), 'Çekimser / oy vermedi', r.abstain, max) : null),
+        r.abstain ? tallyRow(h('span', { class: 'avatar', 'aria-hidden': 'true' }, '🤐'), 'Pas / oy vermedi', r.abstain, max) : null),
       !tally.length && !r.abstain ? h('p', { class: 'hint' }, 'Hiç oy kullanılmadı.') : null);
   }
 
@@ -677,8 +677,8 @@
     };
     const others = v.players.filter((p) => p.alive && p.id !== me.id);
     let status;
-    if (current === undefined) status = 'Henüz oy vermedin.';
-    else if (current === null) status = 'Çekimser kaldın. Değiştirebilirsin.';
+    if (current === undefined) status = 'Henüz oy vermedin (oy vermezsen pas sayılır).';
+    else if (current === null) status = 'Pas dedin. Değiştirebilirsin.';
     else { const t = playerById(current); status = `Oyun: ${t ? t.name : '?'}. Oylama bitene kadar değiştirebilirsin.`; }
     return h('div', null,
       ...title('Oylama', 'Kim köyden atılsın? Oyun gizlidir; sonuçta sadece toplamlar görünür.'),
@@ -686,7 +686,7 @@
       card('vote-card',
         h('ul', { class: 'targets', role: 'radiogroup', 'aria-label': 'Oy ver' },
           others.map((p) => option(p.id, [avatar(p.avatar), h('span', { class: 'pname' }, p.name)], current === p.id, () => cast(p.id))),
-          option('abstain', [h('span', { class: 'avatar', 'aria-hidden': 'true' }, '🤐'), h('span', { class: 'pname' }, 'Çekimser')], current === null, () => cast(null), 'abstain')),
+          option('abstain', [h('span', { class: 'avatar', 'aria-hidden': 'true' }, '🤐'), h('span', { class: 'pname' }, 'Pas')], current === null, () => cast(null), 'abstain')),
         h('p', { class: `status ${current === undefined ? 'pending' : 'ok'}` }, ui.pendingVote !== undefined ? 'Gönderiliyor…' : status)),
       dayAbilitySection(v));
   }

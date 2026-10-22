@@ -309,11 +309,18 @@ function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = c
   }, HEARTBEAT_MS);
   hb.unref();
 
+  // Fazlar süresi dolunca moderatör onayı olmadan kendiliğinden ilerler
+  const phaseTimer = setInterval(() => {
+    try { game.tick(); } catch (e) { log('[oyun] otomatik ilerleme hatası:', e && e.stack || e); }
+  }, 500);
+  phaseTimer.unref();
+
   return {
     app, server, wss, game, clients,
     setJoinUrl(u) { state.joinUrl = u; state.qrSvg = null; },
     close() {
       clearInterval(hb);
+      clearInterval(phaseTimer);
       game.off('change', onChange);
       for (const c of clients) c.ws.terminate();
       return new Promise((r) => { wss.close(); server.close(() => r()); });

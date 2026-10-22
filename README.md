@@ -35,10 +35,12 @@ npm start       # sunucuyu başlatır, moderatör paneli tarayıcıda kendiliği
    değişirse "Öneriyi uygula" uyarısı çıkar. Sorun varsa (ör. rol sayısı ≠ oyuncu sayısı) kırmızı uyarı çıkar ve
    Başlat pasif olur. Faz sürelerini (Hızlı / Normal / Uzun ya da elle, "süresiz" dahil) ve seçenekleri ayarla.
 5. **Oyunu Başlat** → onayla. Herkes telefonunda rolünü görür, ekranda "Herkes rolüne baksın" ve rol adetleri çıkar.
-6. **Fazları sen ilerletirsin:** üst çubuktaki büyük düğme her fazda ne yapacağını söyler
-   ("Rolleri dağıttım → Geceyi başlat", "Geceyi bitir (şafağa geç)", "Gündüze geç", "Oylamayı başlat",
-   "Oylamayı bitir", "Geceye geç", "Oyunu bitir / Sonuçları göster"). Süre dolunca sayaç sadece kırmızı yanar,
-   faz kendiliğinden ilerlemez.
+6. **Fazlar kendiliğinden ilerler:** sadece "Rolleri dağıttım → Geceyi başlat" düğmesine sen basarsın. Sonrasında
+   gece, şafak (ölenlerin açıklanması), gündüz, oylama ve oylama sonucu süre dolunca moderatör onayı olmadan, kim hazır
+   olursa olsun bir sonrakine geçer. Üstteki büyük düğme istersen fazı erken bitirmek içindir; süresi 0 (süresiz)
+   olan faz sadece düğmeyle ilerler. Şafak ve sonuç ekranı süreleri `config.durations.dawn/voteresult` (varsayılan 15 sn).
+   **Oylama:** seçenekler "as" (bir oyuncu) ya da "pas"tır. Biri ancak yaşayanların yarısından fazlası ona oy verirse
+   asılır; pas ve oy kullanmayanlar sayılır.
 7. Oyun bitince panelde **Yeni oyun (aynı oyuncularla)** ya da **Tamamen sıfırla**.
 
 ### Moderatör ipuçları
@@ -141,7 +143,7 @@ Bilmen gerekenler:
 ## Oyun akışı
 
 `lobby → rolereveal → night → dawn → day → vote → voteresult → night …` ve `ended`.
-Fazları moderatör ilerletir (yarı otomatik). Süreler telefonda sadece geri sayım gösterir, kendiliğinden ilerlemez.
+Rol dağıtımından sonra fazlar süre dolunca kendiliğinden ilerler (moderatör düğmesi erken bitirmek içindir).
 
 ## WebSocket protokolü
 

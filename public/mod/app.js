@@ -277,7 +277,7 @@
   function tick() {
     const el = $('timer');
     const v = S.view;
-    if (!v || !v.phaseEndsAt || !['night', 'day', 'vote'].includes(v.phase)) { el.hidden = true; return; }
+    if (!v || !v.phaseEndsAt || !['night', 'dawn', 'day', 'vote', 'voteresult'].includes(v.phase)) { el.hidden = true; return; }
     el.hidden = false;
     const left = Math.round((v.phaseEndsAt - (Date.now() + S.offset)) / 1000);
     if (left <= 0) { el.textContent = '⏰ Süre doldu'; el.className = 'timer over'; return; }
@@ -811,7 +811,7 @@
             return h('li', { class: `act ${has ? (t == null ? 'fake' : '') : 'waiting'}` },
               h('span', { class: 'who' }, avatar(p.avatar), h('span', { class: 'nm', title: p.name }, p.name)),
               h('span', { class: 'arrow' }, has && t != null ? '→' : '·'),
-              h('span', { class: 'what' }, has ? (t == null ? 'çekimser' : pname(t)) : 'bekleniyor…'));
+              h('span', { class: 'what' }, has ? (t == null ? 'pas' : pname(t)) : 'bekleniyor…'));
           })));
         return;
       }
@@ -865,7 +865,7 @@
         h('span', { class: 'bar-wrap' }, bar), h('span', { class: 'n' }, String(r.count)));
     }));
     if (!rows.length) list.append(h('li', { class: 'empty' }, 'Henüz kimseye oy verilmedi.'));
-    if (abstain) list.append(h('li', { class: 'trow' }, h('span'), h('span', { class: 'nm' }, 'Çekimser'), h('span'), h('span', { class: 'n' }, String(abstain))));
+    if (abstain) list.append(h('li', { class: 'trow' }, h('span'), h('span', { class: 'nm' }, 'Pas'), h('span'), h('span', { class: 'n' }, String(abstain))));
     if (tie) list.append(h('li', { class: 'hint' }, final ? '⚖ Eşitlik: kimse elenmedi.' : '⚖ Şu an eşitlik var: böyle biterse kimse elenmez.'));
     return list;
   }

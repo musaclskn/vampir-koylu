@@ -1,0 +1,10 @@
+{
+  "id": "soytari",
+  "name": "Soytarı",
+  "emoji": "🤡",
+  "team": "tarafsiz",
+  "category": "gizemli",
+  "description": "Tarafsızsın: ne köylülerle ne de vampirlerle kazanırsın. Tek amacın oylamayla asılmak! Köylüleri ya da vampirleri kendini asmaya ikna edersen tek başına kazanırsın.",
+  "setup": { "minPlayers": 8, "max": 1, "order": 4 },
+  "win": { "type": "lynched" }
+}

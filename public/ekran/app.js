@@ -106,7 +106,7 @@
   function tick() {
     const el = $('timer');
     const v = S.view;
-    if (!v || !v.phaseEndsAt || !['night', 'day', 'vote'].includes(v.phase)) { el.hidden = true; return; }
+    if (!v || !v.phaseEndsAt || !['night', 'dawn', 'day', 'vote', 'voteresult'].includes(v.phase)) { el.hidden = true; return; }
     el.hidden = false;
     const left = Math.round((v.phaseEndsAt - (Date.now() + S.offset)) / 1000);
     if (left <= 0) { el.textContent = 'Süre doldu'; el.className = 'timer over'; return; }
@@ -338,7 +338,7 @@
       if (r.abstain) {
         const bar = h('i');
         bar.style.width = `${total ? (r.abstain / total) * 100 : 0}%`;
-        rows.push(h('li', { class: 'trow abst', '--i': rows.length }, h('span', { class: 'avatar', 'aria-hidden': 'true' }, '🤐'), h('span', { class: 'nm' }, 'Çekimser'), h('span', { class: 'bw' }, bar), h('span', { class: 'n' }, String(r.abstain))));
+        rows.push(h('li', { class: 'trow abst', '--i': rows.length }, h('span', { class: 'avatar', 'aria-hidden': 'true' }, '🤐'), h('span', { class: 'nm' }, 'Pas'), h('span', { class: 'bw' }, bar), h('span', { class: 'n' }, String(r.abstain))));
       }
       if (!rows.length) rows.push(h('li', { class: 'lead muted' }, 'Kimse oy kullanmadı.'));
       const e = r.eliminated;
