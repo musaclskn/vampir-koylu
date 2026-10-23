@@ -134,7 +134,7 @@
   /** Sahnenin içeriğini belirleyen veri; değişmediyse yeniden çizilmez (animasyonlar tekrar oynamaz). */
   function signature(v) {
     const ps = v.players.map((p) => [p.id, p.name, p.avatar, p.alive, p.connected, p.role && p.role.id]);
-    return JSON.stringify([v.phase, v.day, ps, v.report, v.votesCast, v.winner && v.winner.team, v.roleCounts, v.joinUrl, S.avatars.length]);
+    return JSON.stringify([v.phase, v.day, ps, v.report, v.votesCast, v.skip, v.winner && v.winner.team, v.roleCounts, v.joinUrl, S.avatars.length]);
   }
 
   function render(force) {
@@ -300,7 +300,8 @@
       return [
         h('div', { class: 'day-head' },
           h('h1', { class: 'h1 md' }, 'Köy meydanında tartışma'),
-          h('p', { class: 'lead muted' }, `${alive} kişi hayatta · Vampirler aranızda. Kimden şüpheleniyorsunuz?`)),
+          h('p', { class: 'lead muted' }, `${alive} kişi hayatta · Vampirler aranızda. Kimden şüpheleniyorsunuz?`),
+          v.skip && v.skip.count ? h('p', { class: 'lead' }, `⏭️ ${v.skip.count}/${v.skip.needed} kişi oylamaya geçmek istiyor`) : null),
         grid(sortAliveFirst(v.players).map((p) => playerCard(p)), 10),
         h('div', { class: 'day-foot' }, roleChips(v)),
       ];

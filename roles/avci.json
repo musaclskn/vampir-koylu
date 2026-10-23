@@ -4,14 +4,14 @@
   "emoji": "🏹",
   "team": "koylu",
   "category": "saldirgan",
-  "description": "Tek mermin var, sadece gündüz ateş edebilirsin ve ateş gizli kalır. Vurduğun kişi vampirse o ölür, sen devam edersin. Köylü ya da iyi taraftaysa hem o hem sen ölürsün. Ölümler ertesi sabah duyurulur.",
+  "description": "Tek mermin var ve gece ateş edersin. Vurduğun kişi vampirse o ölür, sen devam edersin. Köylü ya da iyi taraftaysa hem o hem sen ölürsün. Sonuç o gecenin şafağında herkese duyurulur; Doktor kurşunu durduramaz.",
   "setup": { "minPlayers": 7, "max": 1, "order": 3 },
   "abilities": [
     {
       "id": "ates",
       "name": "Ateş Et",
-      "description": "Emin olduğun kişiye ateş et. Tek hakkın var.",
-      "phase": "day",
+      "description": "Emin olduğun kişiye ateş et. Tek hakkın var; masumu vurursan sen de ölürsün. Sonuç şafakta açıklanır.",
+      "phase": "night",
       "target": "player",
       "allowSelf": false,
       "uses": 1,

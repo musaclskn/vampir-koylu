@@ -4,7 +4,7 @@
   "emoji": "🤡",
   "team": "tarafsiz",
   "category": "gizemli",
-  "description": "Tarafsızsın: ne köylülerle ne de vampirlerle kazanırsın. Tek amacın oylamayla asılmak! Köylüleri ya da vampirleri kendini asmaya ikna edersen tek başına kazanırsın.",
+  "description": "Tarafsızsın: ne köylülerle ne de vampirlerle kazanırsın. Tek amacın oylamayla asılmak! Köylüleri ya da vampirleri kendini asmaya ikna edersen tek başına kazanırsın. Köyde 5 kişi kalana kadar asılamazsan kader seni gizlice rastgele bir tarafa (köylüler ya da vampirler) yazar; o taraf kazanırsa sen de kazanırsın.",
   "setup": { "minPlayers": 8, "max": 1, "order": 4 },
   "win": { "type": "lynched" }
 }

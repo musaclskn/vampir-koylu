@@ -437,19 +437,24 @@ test('tam oyun: 8 telefon + ekran + moderatör, katılım, yeniden bağlanma, gi
         }
       } else if (ph === 'vote') {
         const target = vamps.find(alive);
-        for (const c of clients.filter(alive)) c.send({ type: 'vote', targetId: target.id });
-        await mod.until((v) => v.waiting.length === 0);
-        await screen.until((v) => v.votesCast === clients.filter(alive).length);
+        const voters = clients.filter(alive);
+        for (const c of voters.slice(0, -1)) c.send({ type: 'vote', targetId: target.id });
+        await mod.until((v) => v.waiting.length === 1);
+        await screen.until((v) => v.votesCast === voters.length - 1);
         assert.ok(!('votes' in screen.view), 'ekran kim kime oy verdi görmemeli');
+        // ölü biri oy veremez
+        const deadOne = clients.find((c) => !alive(c));
+        if (deadOne) {
+          deadOne.send({ type: 'vote', targetId: null });
+          assert.equal((await deadOne.next((m) => m.type === 'error')).message, 'Ölüler oy kullanamaz.');
+        }
+        // son oy gelince oylama moderatörsüz biter
+        voters.at(-1).send({ type: 'vote', targetId: target.id });
+        await mod.until((v) => v.phase !== 'vote');
+        continue;
       } else if (ph === 'dawn') {
         const rv = clients[0].view.report;
         assert.equal(rv.kind, 'dawn');
-      }
-      // ölü biri eylem yapamaz
-      const deadOne = clients.find((c) => !alive(c));
-      if (deadOne && ph === 'vote') {
-        deadOne.send({ type: 'vote', targetId: null });
-        assert.equal((await deadOne.next((m) => m.type === 'error')).message, 'Ölüler oy kullanamaz.');
       }
       mod.send({ type: 'advance' });
       await mod.next((m) => m.type === 'state' && m.view.phase !== ph);

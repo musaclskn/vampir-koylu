@@ -127,3 +127,129 @@ test('vampiresKillSeparately açıkken (varsayılan) 3 vampir 3 kişiyi öldüre
   g.advance();
   assert.equal(g.report.deaths.length, 3);
 });
+
+test('yaşayan herkes oy verince oylama süreyi beklemeden biter', () => {
+  const { g, ps } = makeGame(5, { koylu: 4, vampir: 1 }, { 0: 'vampir' });
+  g.advance(); g.advance(); g.advance(); g.advance(); // gece -> şafak -> gündüz -> oylama
+  assert.equal(g.phase, 'vote');
+  const alive = ps.filter((p) => p.alive);
+  for (const p of alive.slice(0, -1)) g.submitVote(p.id, ps[0].id === p.id ? null : ps[0].id);
+  assert.equal(g.phase, 'vote', 'son kişi oy vermeden bitmez');
+  g.submitVote(alive.at(-1).id, null); // pas da oy sayılır
+  assert.equal(g.phase, 'voteresult');
+});
+
+test('gündüz "oylamaya geç": yaşayan herkes isterse oylama başlar', () => {
+  const { g, ps } = makeGame(5, { koylu: 4, vampir: 1 }, { 0: 'vampir' });
+  g.advance(); g.advance(); g.advance(); // gece -> şafak -> gündüz
+  assert.equal(g.phase, 'day');
+  assert.deepEqual(g.publicView().skip, { count: 0, needed: 5 });
+  g.voteSkipDay(ps[1].id);
+  g.voteSkipDay(ps[2].id);
+  g.voteSkipDay(ps[2].id); // aynı kişi iki kez sayılmaz
+  assert.equal(g.viewFor(ps[1].id).me.skipped, true);
+  assert.deepEqual(g.publicView().skip, { count: 2, needed: 5 });
+  g.voteSkipDay(ps[2].id, false); // vazgeçti
+  assert.equal(g.publicView().skip.count, 1);
+  g.voteSkipDay(ps[2].id); g.voteSkipDay(ps[3].id); g.voteSkipDay(ps[4].id);
+  assert.equal(g.phase, 'day', 'biri daha istemedi');
+  g.voteSkipDay(ps[0].id);
+  assert.equal(g.phase, 'vote');
+  assert.throws(() => g.voteSkipDay(ps[4].id), /gündüz değil/);
+});
+
+test('rastgele rol yuvası: takımından bir rol verilir, ortak ekranda sadece "Rastgele" görünür', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const { g, ps } = makeGame(8, { koylu: 3, rastgele_koylu: 3, vampir: 1, rastgele_vampir: 1 }, {}, seed);
+    const roles = ps.map((p) => g.roles.get(p.roleId));
+    assert.equal(roles.filter((r) => r.team === 'vampir').length, 2, `seed ${seed}`);
+    assert.equal(roles.filter((r) => r.team === 'koylu').length, 6, `seed ${seed}`);
+    assert.ok(ps.every((p) => !p.roleId.startsWith('rastgele_')));
+    const counts = g.publicView().roleCounts;
+    assert.deepEqual(counts.find((c) => c.id === 'rastgele_koylu'), { id: 'rastgele_koylu', name: 'Rastgele Köylü', emoji: '❓', team: 'koylu', count: 3 });
+  }
+});
+
+test('rastgele yuva panelde rol olarak listelenir ve vampir sayısı kuralına dahildir', () => {
+  const { g } = makeGame(4, { koylu: 3, vampir: 1 });
+  g.restartKeepPlayers();
+  const mv = g.modView();
+  for (const id of ['rastgele_koylu', 'rastgele_vampir', 'rastgele_tarafsiz']) assert.ok(mv.roles.some((r) => r.id === id && r.random), id);
+  g.setConfig({ roleCounts: { koylu: 2, rastgele_vampir: 2 } });
+  assert.ok(g.validateSetup().some((t) => /Vampir sayısı/.test(t)));
+  g.setConfig({ roleCounts: { koylu: 3, rastgele_vampir: 1 } });
+  assert.deepEqual(g.validateSetup(), []);
+  assert.throws(() => g.setConfig({ roleCounts: { rastgele_ejderha: 1 } }), /Bilinmeyen rol/);
+});
+
+// ------------------------------------------------------------------ Soytarı: son 5 kişide gizli rastgele taraf
+function jesterGame(seed = 7) {
+  // 6 kişi: 0 vampir, 1 soytarı, 2-5 köylü tarafı
+  return makeGame(6, { koylu: 3, doktor: 1, vampir: 1, soytari: 1 }, { 0: 'vampir', 1: 'soytari', 2: 'koylu' }, seed);
+}
+
+test('Soytarı 5 kişi kalınca hâlâ asılmadıysa gizlice rastgele bir taraf alır', () => {
+  const sides = new Set();
+  for (let seed = 1; seed <= 12; seed++) {
+    const { g, ps } = jesterGame(seed);
+    g.advance(); // gece
+    assert.equal(ps[1].side, null, '6 kişide taraf yok');
+    g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: ps[2].id });
+    g.advance(); // şafak: 5 kişi kaldı
+    assert.equal(g.winner, null, 'oyun hemen bitmez');
+    assert.ok(['koylu', 'vampir'].includes(ps[1].side), `seed ${seed}`);
+    sides.add(ps[1].side);
+    assert.match(ps[1].privateLog.at(-1).text, /Kader seni/);
+    assert.equal(g.viewFor(ps[1].id).me.side.team, ps[1].side);
+    // başkası göremez
+    assert.equal(g.viewFor(ps[0].id).me.side, null);
+    assert.ok(!JSON.stringify(g.publicView()).includes('"side"'));
+  }
+  assert.equal(sides.size, 2, 'iki taraf da çıkabilmeli');
+});
+
+test('taraf almış Soytarı asılırsa kazanmaz; tarafı kazanırsa ölmüş olsa bile kazanır', () => {
+  const { g, ps } = jesterGame();
+  g.advance();
+  g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: ps[2].id });
+  g.advance(); // şafak, 5 kişi
+  ps[1].side = 'koylu'; // testte tarafı sabitle
+  g.advance(); g.advance(); // gündüz -> oylama
+  for (const p of ps.filter((x) => x.alive)) g.submitVote(p.id, ps[1].id); // Soytarı asılır
+  assert.equal(ps[1].alive, false);
+  assert.equal(g.winner, null, 'asılarak kazanma bitti');
+  // köy vampiri bulur
+  g.advance(); // gece
+  g.advance(); g.advance(); g.advance(); // şafak -> gündüz -> oylama
+  for (const p of ps.filter((x) => x.alive)) g.submitVote(p.id, p.id === ps[0].id ? null : ps[0].id);
+  assert.equal(g.winner.team, 'koylu');
+  g.advance();
+  assert.ok(g.winner.playerIds.includes(ps[1].id), 'ölü Soytarı köyle kazandı');
+});
+
+test('vampir tarafına yazılan Soytarı vampir sayılmaz ama vampirler kazanınca kazanır', () => {
+  const { g, ps } = jesterGame();
+  g.advance();
+  g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: ps[2].id });
+  g.advance(); // 5 kişi: vampir, soytarı, 3 köylü tarafı
+  ps[1].side = 'vampir';
+  g._checkWinner();
+  assert.equal(g.winner, null, '1 vampir 4 diğer: sürer');
+  // gece 2 köylü daha ölür -> 1 vampir, soytarı, 1 köylü: vampir 1 < 2 diğer, sürer
+  const town = ps.filter((p) => p.alive && p.roleId !== 'vampir' && p.roleId !== 'soytari');
+  g.advance(); g.advance(); g.advance(); // gündüz -> oylama -> sonuç (kimse oy vermedi)
+  g.advance(); // gece
+  g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: town[0].id });
+  g.advance();
+  assert.equal(g.winner, null);
+  g.advance(); g.advance(); g.advance(); g.advance(); // gündüz, oylama, sonuç, gece
+  g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: town[1].id });
+  g.advance(); // 1 vampir, soytarı, 1 köylü -> sürer
+  assert.equal(g.winner, null);
+  g.advance(); g.advance(); g.advance(); g.advance();
+  g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: town[2].id });
+  g.advance(); // 1 vampir, soytarı -> eşitlik, vampirler kazanır
+  assert.equal(g.winner.team, 'vampir');
+  g.advance();
+  assert.ok(g.winner.playerIds.includes(ps[1].id));
+});

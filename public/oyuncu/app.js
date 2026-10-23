@@ -16,10 +16,6 @@
     vampir: { name: 'Vampirler', emoji: '🧛' },
     tarafsiz: { name: 'Tarafsızlar', emoji: '🎭' },
   };
-  const DECOY = {
-    id: '__decoy', name: 'Gözetle', usableNow: true, usesLeft: null, allowSelf: false, excludeTeam: false,
-    description: 'Gece dolaşan gölgelere dikkat et — bir kişiyi gözetle.',
-  };
   const FALLBACK_AVATARS = [['vampir', '🧛'], ['cadi', '🧙'], ['peri', '🧚'], ['elf', '🧝'], ['zombi', '🧟'], ['hayalet', '👻'],
     ['yarasa', '🦇'], ['kurt', '🐺'], ['baykus', '🦉'], ['kuzgun', '🐦‍⬛'], ['kedi', '🐈‍⬛'], ['yilan', '🐍'], ['orumcek', '🕷️'],
     ['kurukafa', '💀'], ['mum', '🕯️'], ['kabak', '🎃'], ['gul', '🥀'], ['ay', '🌙'], ['yildiz', '⭐'], ['ates', '🔥'],
@@ -37,6 +33,7 @@
     name: '', avatar: null,
     night: { abilityId: null, targetId: null }, nightSent: null, // nightSent: {kind:'pass'|'choice', abilityId, targetId}
     pendingVote: undefined, shootTarget: null, roleOpen: false, sheet: null, confirm: null,
+    mini: null, // gece hafıza oyunu (sadece telefonda; oyuna etkisi yok)
   };
 
   function load(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -171,7 +168,7 @@
     const phaseChanged = !prev || prev.phase !== view.phase || prev.day !== view.day;
     if (phaseChanged) {
       ui.night = { abilityId: null, targetId: null };
-      ui.nightSent = null; ui.pendingVote = undefined; ui.shootTarget = null; ui.roleOpen = false;
+      ui.nightSent = null; ui.pendingVote = undefined; ui.shootTarget = null; ui.roleOpen = false; ui.mini = null;
       if (ui.sheet === 'confirm') closeSheet();
     }
     if (view.phase === 'dawn' && view.report) S.lastDawn = view.report;
@@ -384,6 +381,7 @@
       return h('div', null,
         ...title('Şafak söktü', `${v.day}. gecenin ardından köy uyanıyor…`),
         reportCard(r.text, r.deaths),
+        sideCard(v),
         whispers(v, (e) => e.day === v.day && e.phase === 'night'),
         playersList(v.players));
     },
@@ -391,8 +389,10 @@
     day(v) {
       const dawn = S.lastDawn && S.lastDawn.day === v.day ? S.lastDawn : null;
       return h('div', null,
-        ...title('Gündüz', 'Konuşun, sorgulayın, şüphelenin. Oylama moderatör başlatınca açılacak.'),
+        ...title('Gündüz', 'Konuşun, sorgulayın, şüphelenin. Süre bitince ya da herkes "geçelim" deyince oylama açılır.'),
         dawn ? card('recap', h('h3', { class: 'section-title' }, 'Bu sabah'), h('p', null, dawn.text)) : null,
+        sideCard(v),
+        skipCard(v),
         dayAbilitySection(v),
         playersList(v.players),
         logButtonCard(v));
@@ -405,6 +405,7 @@
       return h('div', null,
         ...title('Köyün kararı'),
         reportCard(r.text, r.eliminated ? [r.eliminated] : []),
+        sideCard(v),
         tallyCard(r),
         dayAbilitySection(v),
         playersList(v.players));
@@ -519,6 +520,7 @@
       h('h2', { class: 'role-name' }, r.name),
       h('div', { class: 'role-tags' }, teamBadge(r.team), h('span', { class: 'cat-badge' }, `Kategori: ${r.categoryLabel}`)),
       h('p', { class: 'role-desc' }, r.description),
+      me.side ? h('p', { class: `side-note team-${me.side.team}` }, `${me.side.emoji} Artık gizlice ${me.side.name} tarafındasın: onlar kazanırsa sen de kazanırsın.`) : null,
       me.abilities.length ? h('ul', { class: 'abilities' }, me.abilities.map((a) => h('li', null,
         h('strong', null, `${a.phase === 'night' ? '🌙' : '☀️'} ${a.name}`),
         a.usesLeft != null ? h('span', { class: 'uses' }, ` · ${a.usesLeft} hak`) : null,
@@ -545,8 +547,8 @@
   // ---- gece
   function nightScreen(v) {
     const me = v.me;
-    const real = me.abilities.filter((a) => a.phase === 'night');
-    const abilities = me.hasNightAbility ? real : [DECOY];
+    if (!me.hasNightAbility) return nightWatchScreen(v);
+    const abilities = me.abilities.filter((a) => a.phase === 'night');
     if (!ui.night.abilityId || !abilities.some((a) => a.id === ui.night.abilityId && a.usableNow)) {
       const first = abilities.find((a) => a.usableNow);
       ui.night.abilityId = first ? first.id : null;
@@ -617,10 +619,105 @@
         h('p', { class: 'ability-desc' }, ab ? ab.description : 'Bu gece kullanabileceğin yetenek kalmadı.'),
         list,
         h('div', { class: 'actions' }, confirm, pass),
-        status));
+        status),
+      me.nightSubmitted ? miniCard('Beklerken: gece nöbeti', 'Gece bitene kadar eşleri bul. Herkes telefonuyla meşgulken kimse kimin rolü olduğunu anlayamaz.') : null);
   }
 
-  // ---- gündüz yeteneği (avcı)
+  // ---- gece nöbeti: yeteneği olmayanların (ve seçimini yapmış herkesin) hafıza oyunu.
+  // Oyuna hiçbir etkisi yoktur; amaç gece herkesin telefonla meşgul görünmesi. İlk turu bitiren köylü "hazır" sayılır.
+  const MINI_EMOJI = ['🦇', '🌙', '🕯️', '🧄', '🔮', '🦉', '🐺', '💀', '🥀', '🗝️', '⚰️', '🕸️', '🍷', '🪦'];
+  const MINI_PAIRS = 6;
+  function newMiniBoard(prev) {
+    const pool = [...MINI_EMOJI];
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const picked = pool.slice(0, MINI_PAIRS);
+    const cards = [...picked, ...picked].map((e) => ({ e, open: false, done: false }));
+    for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; }
+    return { cards, first: null, lock: false, moves: 0, rounds: prev ? prev.rounds : 0, won: false };
+  }
+  function flipMini(i) {
+    const m = ui.mini;
+    const c = m.cards[i];
+    if (m.lock || m.won || c.open || c.done) return;
+    c.open = true;
+    if (m.first === null) { m.first = i; render(); return; }
+    m.moves += 1;
+    const a = m.cards[m.first];
+    m.first = null;
+    if (a.e === c.e) {
+      a.done = true; c.done = true;
+      if (m.cards.every((x) => x.done)) {
+        m.won = true; m.rounds += 1;
+        // yeteneği olmayan oyuncu ilk turu bitirince moderatöre "hazır" görünür
+        const me = S.view && S.view.me;
+        if (me && !me.hasNightAbility && !me.nightSubmitted) send({ type: 'night', abilityId: '__decoy' });
+      }
+      render();
+      return;
+    }
+    m.lock = true;
+    render();
+    setTimeout(() => {
+      if (ui.mini !== m) return; // gece bitti / yeni tur
+      a.open = false; c.open = false; m.lock = false;
+      render();
+    }, 750);
+  }
+  function miniCard(titleText, desc) {
+    if (!ui.mini) ui.mini = newMiniBoard();
+    const m = ui.mini;
+    const found = m.cards.filter((c) => c.done).length / 2;
+    return card('mini-card',
+      h('h3', { class: 'section-title' }, `🕯️ ${titleText}`),
+      h('p', { class: 'ability-desc' }, desc),
+      h('ul', { class: 'mini-grid', 'aria-label': 'Hafıza oyunu' }, m.cards.map((c, i) => {
+        const shown = c.open || c.done;
+        const b = h('button', {
+          type: 'button', class: `mini-tile ${shown ? 'open' : ''} ${c.done ? 'done' : ''}`,
+          'aria-label': shown ? c.e : 'kapalı kart', disabled: c.done,
+        }, shown ? c.e : '');
+        b.addEventListener('click', () => flipMini(i));
+        return h('li', null, b);
+      })),
+      m.won
+        ? h('div', { class: 'actions' },
+          h('p', { class: 'status ok' }, `✔ Tüm eşleri ${m.moves} hamlede buldun!${m.rounds > 1 ? ` (bu gece ${m.rounds}. tur)` : ''}`),
+          btn('🔁 Yeni tur', { class: 'ghost block', onclick: () => { ui.mini = newMiniBoard(m); render(); } }))
+        : h('p', { class: 'hint' }, `${found} / ${MINI_PAIRS} eş bulundu · ${m.moves} hamle`));
+  }
+  function nightWatchScreen(v) {
+    const me = v.me;
+    return h('div', null,
+      ...title(`${v.day}. gece`, 'Köy uyurken herkes telefonuna bakıyor. Kimse kimin ne yaptığını bilmiyor.'),
+      sideCard(v),
+      miniCard('Gece nöbeti', 'Mumların ışığında eşleri bul. Senin gece yeteneğin yok; bu nöbetle meşgulken kimse rolünü tahmin edemez.'),
+      me.nightSubmitted
+        ? h('p', { class: 'status ok' }, '✔ Hazırsın. Gece bitene kadar istediğin kadar tur oynayabilirsin.')
+        : h('p', { class: 'status pending' }, 'Bir turu bitirince hazır sayılırsın.'));
+  }
+
+  // ---- Soytarı'ya sonradan verilen gizli taraf
+  function sideCard(v) {
+    const s = v.me && v.me.alive && v.me.side;
+    if (!s) return null;
+    return card(`side-card team-${s.team}`, h('h3', { class: 'section-title' }, `${s.emoji} Gizli tarafın: ${s.name}`),
+      h('p', null, `${s.name} kazanırsa sen de kazanırsın, ölmüş olsan bile. Asılarak kazanamazsın artık. Kimseye belli etme.`));
+  }
+
+  // ---- gündüz: "oylamaya geç" (yaşayan herkes isterse oylama hemen başlar)
+  function skipCard(v) {
+    const me = v.me;
+    if (!me || !me.alive || !v.skip) return null;
+    const on = !!me.skipped;
+    return card('skip-card',
+      btn(on ? '✋ Vazgeç, konuşmaya devam' : '⏭️ Oylamaya geçelim', {
+        class: `${on ? 'ghost' : 'primary'} block`,
+        onclick: () => send({ type: 'skipDay', want: !on }),
+      }),
+      h('p', { class: 'hint center' }, `${v.skip.count} / ${v.skip.needed} kişi oylamaya geçmek istiyor`));
+  }
+
+  // ---- gündüz yeteneği
   function dayAbilitySection(v) {
     const me = v.me;
     if (!me || !me.alive) return null;
@@ -649,7 +746,7 @@
             if (!t) return;
             openConfirm({
               title: `${ab.name}?`,
-              text: `${t.name} kişisine ateş etmek üzeresin. Bu geri alınamaz! Hedef masumsa o da sen de ölürsün. Sonuç ve ölümler yarın sabah duyurulur.`,
+              text: `${t.name} kişisine ateş etmek üzeresin. Bu geri alınamaz! Hedef masumsa o da sen de ölürsün. Sonuç şafakta duyurulur.`,
               ok: 'Evet, ateş et', danger: true,
               onOk: () => { send({ type: 'dayAbility', abilityId: ab.id, targetId: t.id }); ui.shootTarget = null; },
             });
@@ -680,7 +777,7 @@
     let status;
     if (current === undefined) status = 'Henüz oy vermedin (oy vermezsen pas sayılır).';
     else if (current === null) status = 'Pas dedin. Değiştirebilirsin.';
-    else { const t = playerById(current); status = `Oyun: ${t ? t.name : '?'}. Oylama bitene kadar değiştirebilirsin.`; }
+    else { const t = playerById(current); status = `Oyun: ${t ? t.name : '?'}. Herkes oy verene kadar değiştirebilirsin.`; }
     return h('div', null,
       ...title('Oylama', 'Kim köyden atılsın? Oyun gizlidir; sonuçta sadece toplamlar görünür.'),
       h('p', { class: 'progress' }, `${v.votesCast || 0} / ${aliveCount} kişi oy verdi`),

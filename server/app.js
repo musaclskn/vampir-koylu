@@ -241,6 +241,7 @@ function createServer({ roles, joinUrl = 'http://127.0.0.1:3000/', game, log = c
       case 'night': return game.submitNight(c.playerId, { abilityId: str(msg.abilityId), targetId: str(msg.targetId) });
       case 'dayAbility': return game.useDayAbility(c.playerId, { abilityId: str(msg.abilityId), targetId: str(msg.targetId) });
       case 'vote': return game.submitVote(c.playerId, msg.targetId == null ? null : str(msg.targetId));
+      case 'skipDay': return game.voteSkipDay(c.playerId, msg.want !== false);
       default: throw new GameError('Bilinmeyen istek.');
     }
   }

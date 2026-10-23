@@ -324,3 +324,5 @@ code, .url { font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation M
   .col-join, .side { grid-template-columns: minmax(0, 1fr); }
   .lobby, .game { padding: 12px; }
 }
+.rrow.random { border-left-style: dashed; }
+.rrow.random .rrow-name { font-style: italic; }

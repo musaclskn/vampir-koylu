@@ -170,11 +170,12 @@ test('vampir takım arkadaşını ve kendini hedefleyemez', () => {
   assert.throws(() => g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: ps[0].id }), /Kendini/);
 });
 
-test('rolünde olmayan yetenek kullanılamaz, gündüz yeteneği gece kullanılamaz', () => {
+test('rolünde olmayan yetenek kullanılamaz, gece yeteneği gündüz kullanılamaz', () => {
   const { g, ps } = makeGame(8, { koylu: 5, vampir: 1, avci: 1, doktor: 1 }, { 0: 'koylu', 1: 'avci' });
   toNight(g);
   assert.throws(() => g.submitNight(ps[0].id, { abilityId: 'oldur', targetId: ps[2].id }), /yeteneğin yok/);
-  assert.throws(() => g.submitNight(ps[1].id, { abilityId: 'ates', targetId: ps[2].id }), /kullanılamaz/);
+  g.advance(); g.advance(); // dawn -> day
+  assert.throws(() => g.useDayAbility(ps[1].id, { abilityId: 'ates', targetId: ps[2].id }), /kullanılamaz/);
 });
 
 test('Temizlikçi: diğer vampir öldürürse ölenin rolü gizlenir', () => {
@@ -250,48 +251,53 @@ test('gece pas/sahte eylem geçerli ve etkisiz', () => {
 // ------------------------------------------------------------------ avcı
 function toDay(g) { g.advance(); g.advance(); assert.equal(g.phase, 'day'); } // night -> dawn -> day
 
-test('Avcı vampire ateş eder: vampir ölür, avcı yaşar, mermi biter, ölüm sabaha duyurulur', () => {
+test('Avcı gece vampire ateş eder: sonuç kimseye erken görünmez, aynı gecenin şafağında duyurulur', () => {
   const { g, ps } = makeGame(8, { koylu: 5, vampir: 2, avci: 1 }, { 0: 'avci', 1: 'vampir' });
   g.advance(); // night
-  toDay(g);
-  g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  g.submitNight(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  // gece boyunca kimse ölmez, avcıya da sonuç söylenmez
+  assert.equal(ps[1].alive, true);
+  assert.doesNotMatch(ps[0].privateLog.map((l) => l.text).join(' '), /vampirdi/);
+  g.advance(); // dawn
   assert.equal(ps[1].alive, false);
   assert.equal(ps[0].alive, true);
   assert.match(ps[0].privateLog.at(-1).text, /vampirdi/);
-  // herkese açık görünümde henüz ölü görünmez
-  assert.equal(g.publicView().players.find((p) => p.id === ps[1].id).alive, true);
-  assert.throws(() => g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[2].id }), /bitti/);
-  // sonraki sabah duyurulur
-  g.advance(); // vote
-  g.advance(); // voteresult
-  g.advance(); // night 2
-  g.advance(); // dawn 2
-  assert.equal(g.phase, 'dawn');
   assert.ok(g.report.deaths.some((d) => d.playerId === ps[1].id));
   assert.match(g.report.text, /avcının kurşunuyla/);
+  assert.equal(g.publicView().players.find((p) => p.id === ps[1].id).alive, false);
+  // mermi bitti
+  g.advance(); g.advance(); g.advance(); g.advance(); // day -> vote -> voteresult -> night 2
+  assert.throws(() => g.submitNight(ps[0].id, { abilityId: 'ates', targetId: ps[2].id }), /bitti/);
 });
 
-test('Avcı masuma ateş ederse ikisi de ölür', () => {
+test('Avcı masuma ateş ederse ikisi de aynı şafakta ölür', () => {
   const { g, ps } = makeGame(8, { koylu: 5, vampir: 2, avci: 1 }, { 0: 'avci', 1: 'koylu' });
-  g.advance(); toDay(g);
-  g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  g.advance();
+  g.submitNight(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  g.advance();
   assert.equal(ps[1].alive, false);
   assert.equal(ps[0].alive, false);
+  assert.deepEqual(g.report.deaths.map((d) => d.playerId).sort(), [ps[0].id, ps[1].id].sort());
   assert.match(ps[0].privateLog.map((l) => l.text).join(' '), /masumdu/);
 });
 
-test('Avcı gece ateş edemez, kendine ateş edemez', () => {
-  const { g, ps } = makeGame(8, { koylu: 5, vampir: 2, avci: 1 }, { 0: 'avci' });
+test('Avcı gündüz ateş edemez, kendine ateş edemez; Doktor kurşunu durduramaz', () => {
+  const { g, ps } = makeGame(8, { koylu: 4, vampir: 2, avci: 1, doktor: 1 }, { 0: 'avci', 1: 'vampir', 2: 'doktor' });
   g.advance();
-  assert.throws(() => g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[1].id }), /gündüz değil/);
-  toDay(g);
-  assert.throws(() => g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[0].id }), /Kendini/);
+  assert.throws(() => g.submitNight(ps[0].id, { abilityId: 'ates', targetId: ps[0].id }), /Kendini/);
+  g.submitNight(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  g.submitNight(ps[2].id, { abilityId: 'koru', targetId: ps[1].id });
+  g.advance();
+  assert.equal(ps[1].alive, false, 'doktor korusa da kurşun öldürür');
+  g.advance(); // day
+  assert.throws(() => g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[3].id }), /kullanılamaz|bitti/);
 });
 
-test('Avcı son vampire ateş ederse oyun biter', () => {
+test('Avcı son vampire ateş ederse oyun şafakta biter', () => {
   const { g, ps } = makeGame(6, { koylu: 4, vampir: 1, avci: 1 }, { 0: 'avci', 1: 'vampir' });
-  g.advance(); toDay(g);
-  g.useDayAbility(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  g.advance();
+  g.submitNight(ps[0].id, { abilityId: 'ates', targetId: ps[1].id });
+  g.advance();
   assert.equal(g.winner.team, 'koylu');
   g.advance();
   assert.equal(g.phase, 'ended');

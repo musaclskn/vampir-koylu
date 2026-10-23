@@ -275,8 +275,7 @@ test('ortak ekran: hiçbir mesajda rol/oy/gece eylemi/hazır bilgisi yok (sadece
     const voters = players.filter(alive);
     assert.equal(voters.length, 7);
     voters.forEach((c, i) => c.send({ type: 'vote', targetId: i === 6 ? null : i % 2 ? vamp.id : villagers[1].id })); // 3-3 + 1 çekimser
-    await screen.until((v) => v.votesCast === voters.length);
-    await advance('voteresult');
+    await screen.until((v) => v.phase === 'voteresult'); // herkes oy verince kendiliğinden biter
     assert.equal(screen.view.report.eliminated, null);
 
     // 2. gece: doktor korur -> kimse ölmez
@@ -291,8 +290,7 @@ test('ortak ekran: hiçbir mesajda rol/oy/gece eylemi/hazır bilgisi yok (sadece
     await advance('day');
     await advance('vote');
     for (const c of players.filter(alive)) c.send({ type: 'vote', targetId: c === vamp ? null : vamp.id });
-    await screen.until((v) => v.votesCast === players.filter(alive).length);
-    await advance('voteresult');
+    await screen.until((v) => v.phase === 'voteresult'); // herkes oy verince kendiliğinden biter
     assert.equal(screen.view.report.eliminated.playerId, vamp.id);
     assert.equal(screen.view.report.eliminated.roleId, 'vampir');
     assert.equal(screen.view.players.find((p) => p.id === vamp.id).role.id, 'vampir');
@@ -305,8 +303,7 @@ test('ortak ekran: hiçbir mesajda rol/oy/gece eylemi/hazır bilgisi yok (sadece
     await advance('day');
     await advance('vote');
     for (const c of players.filter(alive)) c.send({ type: 'vote', targetId: c === cleaner ? null : cleaner.id });
-    await screen.until((v) => v.votesCast === players.filter(alive).length);
-    await advance('voteresult');
+    await screen.until((v) => v.phase === 'voteresult'); // herkes oy verince kendiliğinden biter
     await advance('ended');
     assert.equal(screen.view.winner.team, 'koylu');
 

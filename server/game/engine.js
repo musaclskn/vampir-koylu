@@ -10,8 +10,14 @@ class GameError extends Error {}
 const fail = (msg) => { throw new GameError(msg); };
 
 const MIN_PLAYERS = 4;
+// Asılarak kazanan (Soytarı) bu kadar kişi kalınca hâlâ hayattaysa rastgele bir tarafa geçer ve onunla kazanır.
+const JESTER_SIDE_AT = 5;
+const JESTER_SIDES = ['koylu', 'vampir'];
 const MAX_NAME = 16;
 const TEAM_ORDER = { koylu: 0, tarafsiz: 1, vampir: 2 };
+// Rastgele rol yuvaları: kurulumda "❓ Rastgele Köylü" gibi görünür, oyun başlarken o takımın rollerinden biri rastgele verilir.
+const RANDOM_PREFIX = 'rastgele_';
+const RANDOM_LABEL = { koylu: 'Köylü', vampir: 'Vampir', tarafsiz: 'Tarafsız' };
 const ABILITY_GAME_PHASES = { night: ['night'], day: ['day', 'vote'] };
 
 const defaultConfig = () => ({
@@ -65,6 +71,7 @@ class Game extends EventEmitter {
     return {
       id, token, name, avatar, connected,
       alive: true, roleId: null, death: null, used: {}, lastTargets: {}, privateLog: [],
+      side: null, // Soytarı'ya sonradan verilen gizli taraf
     };
   }
 
@@ -76,6 +83,7 @@ class Game extends EventEmitter {
     this.phaseEndsAt = null;
     this.nightActions = {}; // playerId -> { abilityId, targetId }
     this.votes = {}; // playerId -> targetId | null
+    this.skipVotes = new Set(); // gündüz "oylamaya geç" diyenler
     this.report = null; // son duyuru (şafak / oylama sonucu)
     this.pendingDeaths = []; // avcı kurşunuyla ölenler, sabaha duyurulacak
     this.winner = null;
@@ -174,11 +182,28 @@ class Game extends EventEmitter {
   // ---------------------------------------------------------------- kurulum
   suggest(n = this.players.size) { return suggestRoleCounts(n, this.roles); }
 
+  /** Rastgele yuvalar (sadece rolü olan takımlar için): [{id, team, name, emoji, description, random: true}] */
+  _randomSlots() {
+    const teams = [...new Set([...this.roles.values()].map((r) => r.team))].sort((a, b) => TEAM_ORDER[a] - TEAM_ORDER[b]);
+    return teams.map((team) => ({
+      id: RANDOM_PREFIX + team, team, random: true, emoji: '❓',
+      name: `Rastgele ${RANDOM_LABEL[team] || team}`,
+      description: `Oyun başlayınca ${TEAMS[team].name} takımının rollerinden biri rastgele verilir: `
+        + [...this.roles.values()].filter((r) => r.team === team).map((r) => r.name).join(', ') + '.',
+    }));
+  }
+  _randomSlot(id) { return this._randomSlots().find((s) => s.id === id) || null; }
+  /** Gerçek rol ya da rastgele yuva için takım. */
+  _setupTeam(id) {
+    const r = this.roles.get(id) || this._randomSlot(id);
+    return r ? r.team : null;
+  }
+
   setConfig(partial = {}) {
     if (this.phase !== 'lobby') fail('Ayarlar sadece oyun başlamadan değiştirilebilir.');
     if (partial.roleCounts) {
       for (const [id, c] of Object.entries(partial.roleCounts)) {
-        if (!this.roles.has(id)) fail(`Bilinmeyen rol: ${id}`);
+        if (!this._setupTeam(id)) fail(`Bilinmeyen rol: ${id}`);
         if (!Number.isInteger(c) || c < 0) fail(`"${id}" için geçersiz adet.`);
       }
       this.config.roleCounts = { ...partial.roleCounts };
@@ -205,7 +230,7 @@ class Game extends EventEmitter {
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     if (n < MIN_PLAYERS) problems.push(`En az ${MIN_PLAYERS} oyuncu gerekli (şu an ${n}).`);
     if (total !== n) problems.push(`Rol sayısı (${total}) oyuncu sayısına (${n}) eşit olmalı.`);
-    const vamps = Object.entries(counts).filter(([id]) => this.roles.get(id) && this.roles.get(id).team === 'vampir')
+    const vamps = Object.entries(counts).filter(([id]) => this._setupTeam(id) === 'vampir')
       .reduce((a, [, c]) => a + c, 0);
     if (vamps < 1) problems.push('En az 1 vampir olmalı.');
     if (vamps >= n - vamps && n > 0) problems.push('Vampir sayısı köylülerden az olmalı, yoksa oyun başlar başlamaz biter.');
@@ -221,7 +246,11 @@ class Game extends EventEmitter {
     this.dealtCounts = { ...counts };
 
     const deck = [];
-    for (const [id, c] of Object.entries(counts)) for (let i = 0; i < c; i++) deck.push(id);
+    for (const [id, c] of Object.entries(counts)) {
+      const slot = this._randomSlot(id);
+      const pool = slot ? [...this.roles.values()].filter((r) => r.team === slot.team).map((r) => r.id) : null;
+      for (let i = 0; i < c; i++) deck.push(pool ? pool[Math.floor(this.rng() * pool.length)] : id);
+    }
     const shuffled = this._shuffle(deck);
     [...this.players.values()].forEach((p, i) => { p.roleId = shuffled[i]; });
 
@@ -239,7 +268,7 @@ class Game extends EventEmitter {
     switch (this.phase) {
       case 'rolereveal': return this._enterNight();
       case 'night': this._resolveNight(); return this._setPhase('dawn');
-      case 'dawn': return this._setPhase('day');
+      case 'dawn': this.skipVotes = new Set(); return this._setPhase('day');
       case 'day': this.votes = {}; return this._setPhase('vote');
       case 'vote': this._resolveVote(); return this._setPhase('voteresult');
       case 'voteresult': return this._enterNight();
@@ -275,6 +304,8 @@ class Game extends EventEmitter {
     for (const p of this.players.values()) {
       const win = this._role(p).win;
       if (win && win.type === 'survive' && p.alive) ids.add(p.id);
+      // taraf verilmiş Soytarı, o taraf kazanırsa (ölmüş olsa bile) kazanır
+      if (p.side && p.side === w.team) ids.add(p.id);
     }
     w.playerIds = [...ids];
     this._log(`Oyun bitti: ${w.reason}`);
@@ -339,6 +370,25 @@ class Game extends EventEmitter {
       if (!this._pubAlive(t)) fail('Ölü birine oy veremezsin.');
     }
     this.votes[playerId] = targetId == null ? null : targetId;
+    // yaşayan herkes oy verdiyse süreyi beklemeden oylamayı bitir
+    if (this._alive().every((p) => p.id in this.votes)) {
+      this._log('Herkes oy verdi, oylama erken bitti.');
+      return this.advance();
+    }
+    this._changed();
+  }
+
+  /** Gündüz "oylamaya geç" oyu. Yaşayan herkes isterse oylama hemen başlar. */
+  voteSkipDay(playerId, want = true) {
+    if (this.phase !== 'day') fail('Şu an gündüz değil.');
+    const p = this.players.get(playerId) || fail('Oyuncu bulunamadı.');
+    if (!p.alive) fail('Ölüler oylamayı hızlandıramaz.');
+    if (want) this.skipVotes.add(p.id); else this.skipVotes.delete(p.id);
+    const alive = this._alive();
+    if (alive.every((a) => this.skipVotes.has(a.id))) {
+      this._log('Herkes istediği için oylamaya geçildi.');
+      return this.advance();
+    }
     this._changed();
   }
 
@@ -438,7 +488,7 @@ class Game extends EventEmitter {
         eliminated = this._deathEntry(t);
         text = eliminated.text;
         const win = this._role(t).win;
-        if (win && win.type === 'lynched' && !this.winner) {
+        if (win && win.type === 'lynched' && !t.side && !this.winner) {
           this.winner = { team: 'tarafsiz', playerIds: [t.id], reason: `${t.name} (${this._role(t).name}) oylamayla elenerek kazandı.` };
         }
       }
@@ -455,6 +505,20 @@ class Game extends EventEmitter {
     const others = alive.length - vamps;
     if (vamps === 0) this.winner = { team: 'koylu', reason: TEAMS.koylu.winText };
     else if (vamps >= others) this.winner = { team: 'vampir', reason: TEAMS.vampir.winText };
+    else this._assignJesterSides(alive);
+  }
+
+  /** Son JESTER_SIDE_AT kişide hâlâ asılmamış Soytarı'ya gizlice rastgele bir taraf verir. Sayımda vampir sayılmaz. */
+  _assignJesterSides(alive) {
+    if (alive.length > JESTER_SIDE_AT) return;
+    for (const p of alive) {
+      const win = this._role(p).win;
+      if (!win || win.type !== 'lynched' || p.side) continue;
+      p.side = JESTER_SIDES[Math.floor(this.rng() * JESTER_SIDES.length)];
+      this._tell(p, `Köyde ${alive.length} kişi kaldı ve hâlâ asılmadın. Kader seni ${TEAMS[p.side].emoji} ${TEAMS[p.side].name} tarafına yazdı: `
+        + `artık ${TEAMS[p.side].name.toLocaleLowerCase('tr')} kazanırsa sen de kazanırsın (ölmüş olsan bile). Asılarak kazanma şansın bitti. Bunu senden başka kimse bilmiyor.`);
+      this._log(`${p.name} (${this._role(p).name}) artık gizlice ${TEAMS[p.side].name} tarafında.`);
+    }
   }
 
   // ---------------------------------------------------------------- görünümler
@@ -484,6 +548,10 @@ class Game extends EventEmitter {
     };
     if (this.phase === 'dawn' || (this.phase === 'voteresult')) state.report = this.report;
     if (this.phase === 'vote') state.votesCast = Object.keys(this.votes).length;
+    if (this.phase === 'day') {
+      const alive = this._alive();
+      state.skip = { count: alive.filter((p) => this.skipVotes.has(p.id)).length, needed: alive.length };
+    }
     if (this.phase === 'ended') {
       state.winner = this._winnerView();
       state.report = this.report;
@@ -492,9 +560,10 @@ class Game extends EventEmitter {
   }
 
   _roleCountsView() {
-    return Object.entries(this.dealtCounts || {}).filter(([id, c]) => c > 0 && this.roles.has(id))
+    // rastgele yuvalar "❓ Rastgele Köylü ×1" olarak görünür (ne çıktığı gizli kalır)
+    return Object.entries(this.dealtCounts || {}).filter(([id, c]) => c > 0 && this._setupTeam(id))
       .map(([id, count]) => {
-        const r = this.roles.get(id);
+        const r = this.roles.get(id) || this._randomSlot(id);
         return { id, name: r.name, emoji: r.emoji, team: r.team, count };
       })
       .sort((a, b) => (TEAM_ORDER[a.team] ?? 9) - (TEAM_ORDER[b.team] ?? 9) || b.count - a.count);
@@ -549,11 +618,13 @@ class Game extends EventEmitter {
     state.me = {
       id: p.id, name: p.name, avatar: p.avatar, alive: p.alive,
       role: this._roleCard(p.roleId), abilities, teammates,
+      side: p.side ? { team: p.side, name: TEAMS[p.side].name, emoji: TEAMS[p.side].emoji } : null,
       // Yeteneği olmayanlar da gece bir seçim ekranı görür (sahte), böylece kimin rolü olduğu belli olmaz.
       hasNightAbility: abilities.some((a) => a.phase === 'night'),
       nightSubmitted: this.phase === 'night' ? !!acted : null,
       nightChoice: this.phase === 'night' && acted && !acted.abilityId.startsWith('__') ? acted : null,
       myVote: this.phase === 'vote' ? (p.id in this.votes ? this.votes[p.id] : undefined) : undefined,
+      skipped: this.phase === 'day' ? this.skipVotes.has(p.id) : null,
       log: p.privateLog,
     };
     return state;
@@ -567,6 +638,8 @@ class Game extends EventEmitter {
       death: p.death,
       acted: this.phase === 'night' ? !!this.nightActions[p.id] : null,
       voted: this.phase === 'vote' ? p.id in this.votes : null,
+      skipped: this.phase === 'day' ? this.skipVotes.has(p.id) : null,
+      side: p.side,
       usesLeft: p.roleId ? Object.fromEntries(this._abilitiesOf(p).filter((a) => a.uses != null).map((a) => [a.id, this._usesLeft(p, a)])) : {},
     }));
     const waiting = this.phase === 'night' ? players.filter((p) => p.alive && !p.acted).map((p) => p.id)
@@ -581,7 +654,7 @@ class Game extends EventEmitter {
         id: r.id, name: r.name, emoji: r.emoji, team: r.team, teamName: TEAMS[r.team].name, category: r.category,
         description: r.description,
         abilities: this._roleAbilities(r).map((a) => ({ id: a.id, name: a.name, phase: a.phase, uses: a.uses == null ? null : a.uses })),
-      })),
+      })).concat(this._randomSlots().map((s) => ({ ...s, teamName: TEAMS[s.team].name, category: null, abilities: [] }))),
       lastReport: this.report,
       avatars: AVATARS,
       waiting,

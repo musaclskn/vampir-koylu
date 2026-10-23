@@ -67,7 +67,7 @@ varsa nerede ne yanlış olduğunu yazar. `_` ile başlayan dosyalar yok sayıl�
 | `frame` | gece | Hedefi o gece Kahin'e "Saldırgan" gösterir. |
 | `hide_role` | gece | Hedef o gece ölürse rolü açıklanmaz. |
 | `inspect_category` | gece | Hedefin rol kategorisini öğretir (rolü/tarafı değil). |
-| `shoot` | gündüz | `hitTeams` (varsayılan `["vampir"]`) içindeyse hedef ölür; değilse hedef ve atan ölür. Ölümler ertesi sabah duyurulur. |
+| `shoot` | gece veya gündüz | `hitTeams` (varsayılan `["vampir"]`) içindeyse hedef ölür; değilse hedef ve atan ölür. Gece kullanılırsa o gecenin şafağında, gündüz kullanılırsa ertesi şafakta duyurulur. Doktor durduramaz. |
 
 Yeni bir etki gerekiyorsa `server/game/effects.js` içine bir blok eklenir (`night()` ya da `instant()` fonksiyonu).
 Sonra roller onu JSON'dan çağırır.

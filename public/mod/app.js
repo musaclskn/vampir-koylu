@@ -490,7 +490,7 @@
     if (S.roleRowsBuilt) return;
     const v = S.view;
     const order = { koylu: 0, tarafsiz: 1, vampir: 2 };
-    const roles = [...v.roles].sort((a, b) => (order[a.team] - order[b.team]) || a.name.localeCompare(b.name, 'tr'));
+    const roles = [...v.roles].sort((a, b) => (order[a.team] - order[b.team]) || (!!a.random - !!b.random) || a.name.localeCompare(b.name, 'tr'));
     $('roleRows').replaceChildren(...roles.map((r) => {
       const t = TEAM[r.team] || { name: r.teamName, emoji: '' };
       const abil = (r.abilities || []).map((a) => `${a.name} (${a.phase === 'night' ? 'gece' : 'gündüz'}${a.uses != null ? `, ${a.uses} hak` : ''})`).join(', ');
@@ -510,7 +510,7 @@
         const c = shownCounts();
         setCounts({ ...c, [r.id]: Math.max(0, Math.min(30, (c[r.id] || 0) + d)) });
       };
-      return h('li', { class: `rrow team-${r.team}`, id: `rrow-${r.id}` },
+      return h('li', { class: `rrow team-${r.team} ${r.random ? 'random' : ''}`, id: `rrow-${r.id}` },
         h('span', { class: 'rrow-emoji', 'aria-hidden': 'true' }, r.emoji),
         h('div', { class: 'rrow-main' },
           h('div', { class: 'rrow-name' }, r.name, h('span', { class: 'team-tag' }, `${t.emoji} ${t.name}`)),
@@ -707,7 +707,7 @@
     $('abortBtn').hidden = ended;
 
     // ---- oyuncu tablosu
-    const phaseCol = { night: 'Gece', vote: 'Oy', ended: 'Sonuç' }[v.phase] || 'Bu faz';
+    const phaseCol = { night: 'Gece', day: 'Oylamaya geç', vote: 'Oy', ended: 'Sonuç' }[v.phase] || 'Bu faz';
     $('phaseCol').textContent = phaseCol;
     const sorted = [...players].sort((a, b) => (b.alive - a.alive));
     $('ptbody').replaceChildren(...sorted.map((p) => {
@@ -715,6 +715,7 @@
       let phaseCell;
       if (v.phase === 'night' && p.alive) phaseCell = p.acted ? h('span', { class: 'ph-ok' }, '✓ hazır') : h('span', { class: 'ph-wait' }, '… bekleniyor');
       else if (v.phase === 'vote' && p.alive) phaseCell = p.voted ? h('span', { class: 'ph-ok' }, '✓ oy verdi') : h('span', { class: 'ph-wait' }, '… bekleniyor');
+      else if (v.phase === 'day' && p.alive) phaseCell = p.skipped ? h('span', { class: 'ph-ok' }, '⏭️ geçelim diyor') : h('span', { class: 'ph-none' }, 'konuşuyor');
       else if (ended) phaseCell = winners.has(p.id) ? h('span', { class: 'ph-ok' }, '👑 kazandı') : h('span', { class: 'ph-none' }, 'kaybetti');
       else phaseCell = h('span', { class: 'ph-none' }, '—');
 
@@ -739,7 +740,8 @@
       return h('tr', { class: `${p.alive ? '' : 'dead'} ${winners.has(p.id) ? 'winner' : ''}` },
         h('td', null, h('div', { class: 'pcell' }, avatar(p.avatar), h('span', { class: 'pn', title: p.name }, p.name), winners.has(p.id) ? h('span', { class: 'crown', 'aria-label': 'kazanan' }, '👑') : null)),
         h('td', null, role
-          ? [h('span', { class: `rbadge team-${role.team}`, title: role.description }, `${role.emoji} ${role.name}`), h('span', { class: 'tname' }, role.teamName)]
+          ? [h('span', { class: `rbadge team-${role.team}`, title: role.description }, `${role.emoji} ${role.name}`),
+            h('span', { class: 'tname' }, p.side ? `${role.teamName} → gizlice ${(TEAM[p.side] || {}).name || p.side}` : role.teamName)]
           : h('span', { class: 'ph-none' }, '—')),
         h('td', null, status),
         h('td', null, phaseCell),
@@ -755,7 +757,7 @@
 
   function deathWhen(d) {
     if (!d.day) return 'oyun başında';
-    return d.cause === 'vampir' ? `${d.day}. gece` : `${d.day}. gün`;
+    return ['vampir', 'avci', 'avci_pismanlik'].includes(d.cause) ? `${d.day}. gece` : `${d.day}. gün`;
   }
 
   function renderNow() {
@@ -772,7 +774,7 @@
         return;
       case 'night': {
         title.textContent = 'Gece eylemleri';
-        hint.textContent = 'Yeteneği olmayanlar da sahte bir seçim yapar (kim rolü olduğu belli olmasın diye).';
+        hint.textContent = 'Yeteneği olmayanlar gece nöbeti (hafıza oyunu) oynar; oyuna etkisi yoktur, sadece herkes meşgul görünsün diye.';
         const acts = v.nightActions || {};
         const rows = alive.map((p) => {
           const a = acts[p.id];
@@ -780,7 +782,7 @@
           const who = h('span', { class: 'who' }, avatar(p.avatar), h('span', { class: 'nm', title: p.name }, p.name), p.role ? h('span', { 'aria-hidden': 'true', title: p.role.name }, p.role.emoji) : null);
           if (!a) return { order: 3, el: h('li', { class: `act waiting team-${team}` }, who, h('span', { class: 'arrow' }, '·'), h('span', { class: 'what' }, 'bekleniyor…')) };
           if (a.abilityId === '__pass') return { order: 1, el: h('li', { class: `act fake team-${team}` }, who, h('span', { class: 'arrow' }, '·'), h('span', { class: 'what' }, 'pas geçti')) };
-          if (a.abilityId === '__decoy') return { order: 2, el: h('li', { class: `act fake team-${team}` }, who, h('span', { class: 'arrow' }, '·'), h('span', { class: 'what' }, `sahte seçim (yeteneği yok)${a.targetId ? ` → ${pname(a.targetId)}` : ''}`)) };
+          if (a.abilityId === '__decoy') return { order: 2, el: h('li', { class: `act fake team-${team}` }, who, h('span', { class: 'arrow' }, '·'), h('span', { class: 'what' }, a.targetId ? `sahte seçim (yeteneği yok) → ${pname(a.targetId)}` : 'gece nöbeti turunu bitirdi (yeteneği yok)')) };
           return {
             order: 0,
             el: h('li', { class: `act team-${team}` }, who, h('span', { class: 'arrow' }, '→'),
@@ -823,8 +825,8 @@
         return;
       case 'day':
         title.textContent = 'Gündüz — tartışma';
-        hint.textContent = 'Köy tartışıyor. Avcı gibi gündüz yetenekleri bu sırada kullanılabilir. Hazır olunca oylamayı başlat.';
-        body.replaceChildren(roleSummary());
+        hint.textContent = 'Köy tartışıyor. Yaşayan herkes telefondan "Oylamaya geçelim" derse ya da süre biterse oylama kendiliğinden başlar.';
+        body.replaceChildren(v.skip ? h('div', { class: 'subhead' }, `⏭️ ${v.skip.count}/${v.skip.needed} kişi oylamaya geçmek istiyor`) : '', roleSummary());
         return;
       case 'voteresult':
         title.textContent = 'Oylama sonucu';

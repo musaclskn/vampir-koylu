@@ -72,11 +72,15 @@ const EFFECTS = {
     },
   },
 
-  // Gündüz tek atımlık ateş: hedef hitTeams'teyse hedef ölür; değilse hem hedef hem atan ölür.
+  // Tek atımlık ateş: hedef hitTeams'teyse hedef ölür; değilse hem hedef hem atan ölür.
+  // Gece kullanılırsa sonuç o gecenin şafağında duyurulur (Doktor kurşunu durduramaz).
   shoot: {
-    phases: ['day'],
-    priority: 0,
+    phases: ['night', 'day'],
+    priority: 25,
     params: ['hitTeams'],
+    night(ctx, actor, target, params) {
+      EFFECTS.shoot.instant(ctx.game, actor, target, params);
+    },
     instant(game, actor, target, params) {
       const hitTeams = params.hitTeams || ['vampir'];
       const targetRole = game.roles.get(target.roleId);

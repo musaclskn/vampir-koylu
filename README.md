@@ -41,6 +41,18 @@ npm start       # sunucuyu başlatır, moderatör paneli tarayıcıda kendiliği
    olan faz sadece düğmeyle ilerler. Şafak ve sonuç ekranı süreleri `config.durations.dawn/voteresult` (varsayılan 15 sn).
    **Oylama:** seçenekler "as" (bir oyuncu) ya da "pas"tır. Biri ancak yaşayanların yarısından fazlası ona oy verirse
    asılır; pas ve oy kullanmayanlar sayılır.
+   Yaşayan herkes oy verdiği an oylama süreyi beklemeden biter.
+   **Gündüz:** telefonlarda "⏭️ Oylamaya geçelim" düğmesi var; yaşayan herkes basarsa oylama hemen başlar.
+   **Rastgele roller:** rol listesinde "❓ Rastgele Köylü / Vampir / Tarafsız" satırları var. Birini artırırsan oyun
+   başlarken bir oyuncuya o takımın rollerinden biri (sade Köylü/Vampir dahil) rastgele verilir; ortak ekranda sadece
+   "❓ Rastgele Köylü ×1" görünür.
+   **Avcı** gece ateş eder; sonuç (ölümler) o gecenin şafağında herkese birlikte duyurulur. Doktor kurşunu durduramaz.
+   **Gece nöbeti:** gece yeteneği olmayanlar telefonda bir hafıza (kart eşleştirme) oyunu oynar; ilk turu bitirince
+   hazır sayılır. Oyuna hiçbir etkisi yoktur, amaç gece herkesin telefonla meşgul görünmesi. Yeteneği olanlar da
+   seçimlerini yaptıktan sonra aynı oyunu görür.
+   **Soytarı:** oylamayla asılırsa tek başına kazanır. Köyde 5 kişi kalana kadar asılamazsa oyun ona gizlice rastgele
+   bir taraf (Köylüler ya da Vampirler) verir; o taraf kazanırsa Soytarı da kazanır (ölmüş olsa bile). Bunu sadece
+   Soytarı ve moderatör görür; Soytarı sayımda vampir sayılmaz, bu yüzden oyun hemen bitmez.
 7. Oyun bitince panelde **Yeni oyun (aynı oyuncularla)** ya da **Tamamen sıfırla**.
 
 ### Moderatör ipuçları
